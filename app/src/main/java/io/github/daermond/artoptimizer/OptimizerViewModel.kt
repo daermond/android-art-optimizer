@@ -28,6 +28,7 @@ data class UiState(
     val pairingEndpoints: List<MdnsEndpoint> = emptyList(),
     val connectEndpoints: List<MdnsEndpoint> = emptyList(),
     val discoveryStatus: MdnsStatus = MdnsStatus.STOPPED,
+    val pairingSession: PairingSessionState = PairingSessionState(),
     val configured: List<PackageId> = emptyList(),
     val installed: List<PackageId> = emptyList(),
     val versions: Map<PackageId, InstalledPackage> = emptyMap(),
@@ -75,6 +76,12 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
                 ) }
             }
         }
+        viewModelScope.launch {
+            PairingSessionStore.state.collect { session ->
+                mutable.update { it.copy(pairingSession = session) }
+                if (session.status == PairingStatus.PAIRED) retry()
+            }
+        }
         if (persistence.paired && transport.hasCredential) retry()
         else mutable.update { it.copy(connection = ConnectionPhase.NOT_PAIRED) }
     }
@@ -90,21 +97,13 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun pair(endpoint: MdnsEndpoint, code: String) {
-        connectionJob?.cancel()
-        connectionJob = viewModelScope.launch {
-            mutable.update { it.copy(connection = ConnectionPhase.PAIRING, detail = "Pairing with ${endpoint.name}") }
-            try {
-                transport.pair(endpoint, code)
-                persistence.paired = true
-                connectToDiscovered(null, endpoint.host)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                mutable.update { it.copy(connection = ConnectionPhase.AUTH_FAILED,
-                    detail = "Pairing failed. Check the six-digit code and open the pairing dialog again.") }
-            }
-        }
+    fun startPairing(mode: PairingMode) {
+        runCatching { PairingService.start(getApplication(), mode) }
+            .onFailure { mutable.update { it.copy(detail = "Could not start pairing service") } }
+    }
+
+    fun stopPairing() {
+        runCatching { PairingService.stop(getApplication()) }
     }
 
     private suspend fun connectToDiscovered(saved: DeviceProfile?, preferredHost: String? = null) {
@@ -149,6 +148,7 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun pairAgain() {
+        stopPairing()
         connectionJob?.cancel()
         optimizationJob?.cancel()
         consoleJob?.cancel()
@@ -156,6 +156,7 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
             transport.forgetCredential()
             persistence.paired = false
             persistence.saveProfile(null)
+            PairingSessionStore.update(PairingSessionState())
         } catch (_: Exception) {
             mutable.update { it.copy(connection = ConnectionPhase.ERROR,
                 detail = "Could not clear the pairing credential. Retry Pair Again.") }
@@ -163,7 +164,7 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
         }
         mutable.update { it.copy(connection = ConnectionPhase.NOT_PAIRED, profile = null,
             compileAvailable = false, artAvailable = false, shellUid = "", installed = emptyList(),
-            detail = "Open the Wireless Debugging pairing-code dialog, then select the endpoint below.") }
+            detail = "Choose a pairing method below, then open the Wireless Debugging pairing-code dialog.") }
     }
 
     fun refreshApps() = viewModelScope.launch {

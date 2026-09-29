@@ -29,11 +29,13 @@ Kadb 2.1.4 provides TLS Wireless ADB pairing and mDNS discovery. Its `spake2-jav
 
 ## Usage
 
-Enable Developer Options and Wireless Debugging on the device. Open **Pair device with pairing code**, enter the six-digit code in the app, and select its discovered pairing endpoint. If the endpoint disappears when switching from Settings, keep Settings and the optimizer visible in split screen while pairing. After connection, add package IDs manually, as a comma-separated list, or from discovered third-party apps. Optimize one or all installed configured packages. The app shows actual phases, completed count, elapsed compilation time, and whether ART state could be inspected. The Advanced ADB Console runs only commands you explicitly enter and has a one-time warning.
+Enable Developer Options and Wireless Debugging on the device. The same two pairing choices appear on phones, tablets, and TVs. **Enter code in notification** lets you keep Android's pairing-code dialog open while replying from the notification shade. It needs notification permission and a usable notification shade. **Enter code on another device** shows a QR code for a temporary local HTTP page; scan it with another phone, tablet, or computer (including an iPhone) and enter the six-digit code there. Both methods pair only with an ADB endpoint discovered on the Android device itself. After connection, add package IDs manually, as a comma-separated list, or from discovered third-party apps. Optimize one or all installed configured packages. The app shows actual phases, completed count, elapsed compilation time, and whether ART state could be inspected. The Advanced ADB Console runs only commands you explicitly enter and has a one-time warning.
+
+The web page is opt-in, binds to a local Wi-Fi/Ethernet address, uses a random one-time URL, permits at most three code submissions, and closes after pairing, cancellation, or three minutes. Use it only on a trusted home network: HTTP does not hide the code from a local network attacker. A phone being paired needs a **second** device to scan its QR code.
 
 Pairing uses only mDNS-discovered endpoints on the same device. The ADB private key stays in app-private no-backup storage. Reconnect re-discovers the dynamic port, probes the shell, and checks the saved device identity. If a stable shell identifier is unavailable, the app labels its weaker model-based check.
 
-One Android 16 Samsung tablet has passed pairing, reconnect, console, and a disposable-app compile check. The remaining device matrix, Android TV navigation, and production release signing are tracked in [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md).
+One Android 16 Samsung tablet has passed both notification and second-device web pairing, reconnect, console, and a disposable-app compile check. The remaining device matrix, Android TV navigation, iPhone Safari specifically, and production release signing are tracked in [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md).
 
 ## Repository handoff
 

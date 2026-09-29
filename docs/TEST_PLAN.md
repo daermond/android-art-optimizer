@@ -15,6 +15,7 @@
 - Console execution state: success, failure, unavailable exit code, cancellation/timeout.
 - Raw console command path cannot be reached from built-in optimizer command factories or external intents.
 - Console history is bounded, persisted locally as designed, and can be fully cleared.
+- Local pairing page rejects unknown session URLs, cross-origin posts, malformed codes, and expired sessions; no code appears in the URL or response.
 
 ## Instrumented tests (where practical)
 
@@ -39,6 +40,9 @@ At minimum:
 10. Run a harmless failing/unknown command and verify failure/result is shown without crashing.
 11. Paste `adb shell pm list packages -3`; verify optional prefix normalization and execution.
 12. Verify console history can be cleared and no command auto-runs after restart/reconnect.
+13. On a phone, pair while leaving the Settings code dialog open and entering the code through the notification reply. Verify permission denial has a useful fallback message.
+14. On a phone/tablet/TV, open the QR URL on a second device (including iPhone Safari where available), enter the code, and verify the page closes after pairing, cancellation, and timeout.
+15. Verify both choices are shown on every form factor; unavailable notifications and inaccessible local network produce actionable errors.
 
 ### Real-device run: 2026-09-29
 
@@ -50,8 +54,10 @@ Samsung SM-X210 tablet, Android 16 (API 36):
 - Discovered third-party packages. The Advanced console normalized `adb shell id`, returned shell UID 2000 and exit code 0, and saved the normalized command in local history.
 - The optimizer skipped its own package. A disposable Java test app completed `speed` compilation and recorded `Validation: COMMAND`; this Samsung build did not expose ART inspection through the app's capability probe.
 - Removed both test entries and uninstalled the disposable app. No existing user app was optimized.
+- The new notification-reply path paired successfully while the Settings code dialog remained open.
+- The temporary QR page loaded from a second device over the local network. The first mobile-browser form submission returned 403 because of strict request-header validation; after making the form handler tolerant of omitted or opaque Origin headers and optional Content-Type while retaining the random URL and Host check, the second-device code submission paired successfully. The app saved the pairing and stopped the temporary service. The exact phone browser was not recorded.
 
-Still unverified: Android 11/12 and TV devices, Wireless Debugging off/on and authorization-revocation recovery, two-package batch, version-update detection, console failure/cancel/clear behavior, and production-signed release.
+Still unverified: Android 11/12 and TV devices, iPhone Safari specifically, Wireless Debugging off/on and authorization-revocation recovery, two-package batch, version-update detection, console failure/cancel/clear behavior, and production-signed release.
 
 ## CI gates
 

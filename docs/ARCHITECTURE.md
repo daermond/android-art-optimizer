@@ -108,6 +108,8 @@ Configured
   -> Connected
 
 Failures are states with Retry/Pair Again transitions; pairing data is not deleted automatically.
+
+Pairing input is handled by a short-lived `connectedDevice` foreground service so Android Settings can remain visible. It owns mDNS discovery and the pairing attempt; the ViewModel observes session state and reconnects after the service stores a successful pairing. Notification `RemoteInput` and a QR-linked local HTTP server are two front ends to the same pairing operation. The HTTP server accepts only six-digit codes on a random session path, checks Host and rejects foreign Origin headers when supplied (some mobile browsers omit them), and has bounded requests, submissions, and lifetime. Neither input path accepts ADB shell text.
 ```
 
 ## Optimization state machine

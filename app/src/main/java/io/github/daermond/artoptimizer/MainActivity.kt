@@ -1,9 +1,17 @@
 package io.github.daermond.artoptimizer
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -12,6 +20,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -19,6 +28,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import java.text.DateFormat
 import java.util.Date
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
+import com.google.zxing.qrcode.QRCodeWriter
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -68,23 +80,67 @@ private fun DevicePage(state: UiState, model: OptimizerViewModel) = Page {
     Text(state.detail.ifBlank { "Enable Wireless Debugging in Developer Options." })
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = model::retry) { Text("Retry") }
-        OutlinedButton(onClick = model::pairAgain) { Text("Pair Again") }
+        OutlinedButton(onClick = model::pairAgain,
+            enabled = state.pairingSession.status !in setOf(PairingStatus.STARTING,
+                PairingStatus.READY, PairingStatus.PAIRING)) { Text("Pair Again") }
     }
     if (state.connection != ConnectionPhase.CONNECTED) {
-        Text("1. Enable Developer Options and Wireless Debugging.\n" +
-            "2. Choose Pair device with pairing code in Android settings.\n" +
-            "3. Enter the six-digit code and select the discovered pairing endpoint.\n" +
-            "If the endpoint disappears when switching apps, keep Settings and this app open in split screen while pairing.")
-        var code by rememberSaveable { mutableStateOf("") }
-        OutlinedTextField(value = code, onValueChange = { code = it.filter(Char::isDigit).take(6) },
-            label = { Text("Pairing code") }, modifier = Modifier.fillMaxWidth())
-        if (state.pairingEndpoints.isEmpty()) Text("Searching for pairing endpoint: ${state.discoveryStatus}")
-        state.pairingEndpoints.forEach { endpoint ->
-            Button(onClick = { model.pair(endpoint, code); code = "" }, enabled = code.length == 6) {
-                Text("Pair ${endpoint.name} (${endpoint.host}:${endpoint.port})")
-            }
+        PairingChoices(state, model)
+    }
+}
+
+@Composable
+private fun PairingChoices(state: UiState, model: OptimizerViewModel) {
+    val context = LocalContext.current
+    var notificationDenied by rememberSaveable { mutableStateOf(false) }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        notificationDenied = !granted
+        if (granted) model.startPairing(PairingMode.NOTIFICATION)
+    }
+    Text("Enable Developer Options and Wireless Debugging. Choose a method below first, then open Wireless Debugging → Pair device with pairing code in Android settings. Leave that dialog open while entering its code.")
+    Button(onClick = {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else model.startPairing(PairingMode.NOTIFICATION)
+    }) { Text("Enter code in notification") }
+    Text("Keep the Settings pairing dialog open. Pull down the notification shade and reply with its six-digit code.")
+    if (notificationDenied) Text("Notification permission is needed for this method. You can use the web page instead.")
+    OutlinedButton(onClick = { model.startPairing(PairingMode.WEB) }) {
+        Text("Enter code on another device")
+    }
+    Text("Scan the QR code with another phone, tablet, or computer on the same local network, including an iPhone.")
+    val session = state.pairingSession
+    if (session.status != PairingStatus.IDLE) {
+        HorizontalDivider()
+        Text("${session.mode?.name?.lowercase()?.replaceFirstChar(Char::uppercase) ?: "Pairing"}: ${session.detail}")
+        if (session.mode == PairingMode.WEB && session.url != null &&
+            session.status in setOf(PairingStatus.READY, PairingStatus.PAIRING, PairingStatus.FAILED)) {
+            PairingQr(session.url)
+            SelectionContainer { Text(session.url) }
+            Text("This local HTTP page is temporary. Use it only on a trusted home network. The other device needs to reach this device directly.")
+        }
+        if (session.status in setOf(PairingStatus.STARTING, PairingStatus.READY,
+                PairingStatus.PAIRING) || (session.status == PairingStatus.FAILED && session.url != null)) {
+            OutlinedButton(onClick = model::stopPairing) { Text("Cancel pairing") }
         }
     }
+}
+
+@Composable
+private fun PairingQr(url: String) {
+    val bitmap = remember(url) {
+        val matrix = QRCodeWriter().encode(url, BarcodeFormat.QR_CODE, 320, 320,
+            mapOf(EncodeHintType.MARGIN to 2))
+        Bitmap.createBitmap(matrix.width, matrix.height, Bitmap.Config.ARGB_8888).apply {
+            val pixels = IntArray(matrix.width * matrix.height) { index ->
+                if (matrix[index % matrix.width, index / matrix.width]) Color.BLACK else Color.WHITE
+            }
+            setPixels(pixels, 0, matrix.width, 0, 0, matrix.width, matrix.height)
+        }.asImageBitmap()
+    }
+    Image(bitmap = bitmap, contentDescription = "QR code for the temporary pairing page",
+        modifier = Modifier.size(240.dp))
 }
 
 @Composable
