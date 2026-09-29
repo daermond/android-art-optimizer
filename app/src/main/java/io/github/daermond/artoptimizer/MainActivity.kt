@@ -33,7 +33,7 @@ private fun OptimizerApp(model: OptimizerViewModel = viewModel()) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().padding(16.dp)) {
+            Column(Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp)) {
                 Text("Android ART Optimizer", style = MaterialTheme.typography.headlineSmall)
                 Text("Wireless Debugging: ${state.connection.name.replace('_', ' ').lowercase()}")
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -73,7 +73,8 @@ private fun DevicePage(state: UiState, model: OptimizerViewModel) = Page {
     if (state.connection != ConnectionPhase.CONNECTED) {
         Text("1. Enable Developer Options and Wireless Debugging.\n" +
             "2. Choose Pair device with pairing code in Android settings.\n" +
-            "3. Enter the six-digit code and select the discovered pairing endpoint.")
+            "3. Enter the six-digit code and select the discovered pairing endpoint.\n" +
+            "If the endpoint disappears when switching apps, keep Settings and this app open in split screen while pairing.")
         var code by rememberSaveable { mutableStateOf("") }
         OutlinedTextField(value = code, onValueChange = { code = it.filter(Char::isDigit).take(6) },
             label = { Text("Pairing code") }, modifier = Modifier.fillMaxWidth())

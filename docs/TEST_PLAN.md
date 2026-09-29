@@ -40,6 +40,19 @@ At minimum:
 11. Paste `adb shell pm list packages -3`; verify optional prefix normalization and execution.
 12. Verify console history can be cleared and no command auto-runs after restart/reconnect.
 
+### Real-device run: 2026-09-29
+
+Samsung SM-X210 tablet, Android 16 (API 36):
+
+- Installed and launched the debug APK without a startup crash.
+- Paired through the tablet's own Wireless Debugging service; Settings and the optimizer had to remain in split screen because the pairing endpoint disappeared when Settings went to the background.
+- Connected with a stable shell identity, then reconnected automatically after force-stop and relaunch.
+- Discovered third-party packages. The Advanced console normalized `adb shell id`, returned shell UID 2000 and exit code 0, and saved the normalized command in local history.
+- The optimizer skipped its own package. A disposable Java test app completed `speed` compilation and recorded `Validation: COMMAND`; this Samsung build did not expose ART inspection through the app's capability probe.
+- Removed both test entries and uninstalled the disposable app. No existing user app was optimized.
+
+Still unverified: Android 11/12 and TV devices, Wireless Debugging off/on and authorization-revocation recovery, two-package batch, version-update detection, console failure/cancel/clear behavior, and production-signed release.
+
 ## CI gates
 
 - `lint`
