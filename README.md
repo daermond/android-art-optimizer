@@ -11,7 +11,7 @@ A small standalone Android utility that uses the device's own modern Wireless AD
 - Optimize selected packages with `cmd package compile -m speed -f <package>`.
 - Show honest, phase-based progress and per-package results.
 - Validate the resulting ART state where the Android version exposes enough information.
-- Keep ADB capability isolated in this standalone utility; do not expose a general-purpose shell.
+- Keep built-in optimizer commands allow-listed; provide raw shell commands only through the explicit Advanced console.
 
 ## Supported scope (v1)
 
@@ -21,9 +21,21 @@ A small standalone Android utility that uses the device's own modern Wireless AD
 - No legacy `adb tcpip 5555` fallback in v1.
 - No root requirement.
 
-## Repository handoff
+## Build
 
-The scaffold intentionally lets CI provision Gradle 8.9; the implementation issue requires the coding agent to generate and commit the standard Gradle wrapper early.
+The project uses the committed Gradle 9.3.1 wrapper, Android Gradle Plugin 9.1.1, compile SDK 37, and target SDK 35. The minimum supported runtime remains Android 11 (API 30). Set `ANDROID_HOME` or a Git-ignored `local.properties` pointing to the Android SDK, then run `scripts/check.ps1` on Windows or `scripts/check.sh` on Linux/macOS. The check runs lint, JVM tests, and a debug APK build.
+
+Kadb 2.1.4 provides TLS Wireless ADB pairing and mDNS discovery. Its `spake2-java` pairing dependency is GPL-3.0; see [`docs/DEPENDENCIES.md`](docs/DEPENDENCIES.md) and review redistribution terms before publishing an APK.
+
+## Usage
+
+Enable Developer Options and Wireless Debugging on the device. Open **Pair device with pairing code**, enter the six-digit code in the app, and select its discovered pairing endpoint. After connection, add package IDs manually, as a comma-separated list, or from discovered third-party apps. Optimize one or all installed configured packages. The app shows actual phases, completed count, elapsed compilation time, and whether ART state could be inspected. The Advanced ADB Console runs only commands you explicitly enter and has a one-time warning.
+
+Pairing uses only mDNS-discovered endpoints on the same device. The ADB private key stays in app-private no-backup storage. Reconnect re-discovers the dynamic port, probes the shell, and checks the saved device identity. If a stable shell identifier is unavailable, the app labels its weaker model-based check.
+
+Real-device pairing, reconnect, OEM ART output, Android TV navigation, and release signing still need the manual matrix in [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md).
+
+## Repository handoff
 
 Coding agents should read, in order:
 
@@ -31,7 +43,7 @@ Coding agents should read, in order:
 2. [`docs/SPEC.md`](docs/SPEC.md)
 3. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 4. [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md)
-5. the open implementation issue created from [`docs/IMPLEMENTATION_ISSUE.md`](docs/IMPLEMENTATION_ISSUE.md)
+5. [implementation issue #1](https://github.com/daermond/android-art-optimizer/issues/1)
 
 Do not redesign settled product decisions unless implementation proves one impossible.
 

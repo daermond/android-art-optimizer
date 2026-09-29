@@ -10,6 +10,9 @@ NAME=$(gh api user -q '.name // .login')
 
 if [ ! -d .git ]; then
   git init -b main
+fi
+if ! git rev-parse --verify HEAD >/dev/null 2>&1; then
+  git branch -M main
   git config user.name "${NAME}"
   git config user.email "${LOGIN}@users.noreply.github.com"
   git add .

@@ -28,3 +28,5 @@ The workflow:
 Use `scripts/setup-github-signing.sh <path-to-keystore> <alias>` from an authenticated machine to configure the secrets interactively.
 
 Use `scripts/create-release.sh 0.1.0` after `main` is clean and CI-ready to create/push tag `v0.1.0`.
+
+Kadb includes the GPL-3.0 `spake2-java` pairing dependency. Review its redistribution requirements and the dependency record before publishing an APK.

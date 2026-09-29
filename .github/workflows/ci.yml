@@ -22,10 +22,10 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
+      - name: Install Android SDK 37
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
       - name: Lint, test, build
-        run: gradle --no-daemon lint testDebugUnitTest assembleDebug
+        run: ./gradlew --no-daemon lint testDebugUnitTest assembleDebug
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:

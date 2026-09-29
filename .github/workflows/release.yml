@@ -17,8 +17,8 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
+      - name: Install Android SDK 37
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
 
       - name: Validate signing secrets
         env:
@@ -44,7 +44,7 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           VERSION_CODE: ${{ github.run_number }}
-        run: gradle --no-daemon lint testDebugUnitTest assembleRelease
+        run: ./gradlew --no-daemon lint testDebugUnitTest assembleRelease
 
       - name: Rename and checksum
         run: |
