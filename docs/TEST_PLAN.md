@@ -43,6 +43,8 @@ At minimum:
 13. On a phone, pair while leaving the Settings code dialog open and entering the code through the notification reply. Verify permission denial has a useful fallback message.
 14. On a phone/tablet/TV, open the QR URL on a second device (including iPhone Safari where available), enter the code, and verify the page closes after pairing, cancellation, and timeout.
 15. Verify both choices are shown on every form factor; unavailable notifications and inaccessible local network produce actionable errors.
+16. On TV, verify the app appears in the TV launcher with its banner; use only D-pad/Select/Back to reach every tab, pairing choice, Cancel, app actions, and Advanced warning. The focused control must be obvious and long pages must scroll to it.
+17. On TV, start QR pairing and verify the complete code stays visible beside the instructions as the user navigates. Leave for Settings via Open Developer Options, return with Back, and verify the pairing session is still available or has an actionable error.
 
 ### Real-device run: 2026-09-29
 
@@ -57,7 +59,15 @@ Samsung SM-X210 tablet, Android 16 (API 36):
 - The new notification-reply path paired successfully while the Settings code dialog remained open.
 - The temporary QR page loaded from a second device over the local network. The first mobile-browser form submission returned 403 because of strict request-header validation; after making the form handler tolerant of omitted or opaque Origin headers and optional Content-Type while retaining the random URL and Host check, the second-device code submission paired successfully. The app saved the pairing and stopped the temporary service. The exact phone browser was not recorded.
 
-Still unverified: Android 11/12 and TV devices, iPhone Safari specifically, Wireless Debugging off/on and authorization-revocation recovery, two-package batch, version-update detection, console failure/cancel/clear behavior, and production-signed release.
+Smart TV Pro (G08), Android 14 (API 34), 1920×1080 display, same date:
+
+- Installed the debug APK and launched it through `LEANBACK_LAUNCHER`. Package inspection confirmed the launcher icon, 320×180 TV banner, and optional touchscreen/TV/Wi-Fi features.
+- D-pad focus began on Device with a high-contrast ring. Down navigation reached Retry, notification pairing, web pairing, Open Developer Options, and Cancel; focus scrolling kept those controls visible. Select opened Developer Options, and Back returned to the optimizer.
+- Starting web pairing with Select displayed the QR code beside the steps without losing focus on the selected action. Cancel removed the code.
+- In a fresh session, Open Developer Options reached the TV's Wireless Debugging settings. The local web page accepted the Settings pairing code; the optimizer reported `connected` with verified identity. After force-stop and relaunch it re-discovered the dynamic endpoint and reconnected. No TV app was optimized.
+- D-pad selection of Apps, Diagnostics, and Advanced kept focus on the selected tab. The updated APK was also reinstalled on the Samsung tablet and still opened in the connected state.
+
+Still unverified: Android 11/12 devices, TV optimization, iPhone Safari specifically, Wireless Debugging off/on and authorization-revocation recovery, two-package batch, version-update detection, console failure/cancel/clear behavior, and production-signed release.
 
 ## CI gates
 
