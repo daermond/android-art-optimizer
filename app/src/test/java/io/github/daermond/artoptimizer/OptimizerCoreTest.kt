@@ -31,6 +31,14 @@ class OptimizerCoreTest {
         assertFalse(PackageOutputParser.artReportsSpeed("help: use speed to compile"))
     }
 
+    @Test fun compileCapabilityAcceptsHelpUsageDespiteNonzeroHelpExit() {
+        val tvHelp = ShellResult("Package manager (package) commands:\n  compile [-m COMPILER_FILTER] [-f] PACKAGE\n", "", 255)
+        assertTrue(CapabilityProbe.supportsCompile(tvHelp))
+        assertFalse(CapabilityProbe.supportsCompile(ShellResult("Error: unknown compile command", "", 255)))
+        assertFalse(CapabilityProbe.supportsCompile(ShellResult("", "", 0)))
+        assertFalse(CapabilityProbe.supportsCompile(null))
+    }
+
     @Test fun versionChangeRequiresSuccessfulRecord() {
         val record = OptimizationRecord(target, 4L, "speed", 1L, "Success", ValidationLevel.COMMAND)
         assertFalse(updatedSinceOptimization(4L, record))

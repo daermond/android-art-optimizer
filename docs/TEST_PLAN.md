@@ -45,6 +45,8 @@ At minimum:
 15. Verify both choices are shown on every form factor; unavailable notifications and inaccessible local network produce actionable errors.
 16. On TV, verify the app appears in the TV launcher with its banner; use only D-pad/Select/Back to reach every tab, pairing choice, Cancel, app actions, and Advanced warning. The focused control must be obvious and long pages must scroll to it.
 17. On TV, start QR pairing and verify the complete code stays visible beside the instructions as the user navigates. Leave for Settings via Open Developer Options, return with Back, and verify the pairing session is still available or has an actionable error.
+18. On TV, D-pad past package, filter, and console edit controls without opening the keyboard. Select an edit control to open the keyboard intentionally; Back/Done returns focus to the page and D-pad navigation continues.
+19. On an OEM device whose `cmd package help` prints a `compile [...]` usage entry but exits nonzero, verify the compile capability is available while unsupported ART inspection remains an optional command-validation fallback.
 
 ### Real-device run: 2026-09-29
 
@@ -66,6 +68,8 @@ Smart TV Pro (G08), Android 14 (API 34), 1920×1080 display, same date:
 - Starting web pairing with Select displayed the QR code beside the steps without losing focus on the selected action. Cancel removed the code.
 - In a fresh session, Open Developer Options reached the TV's Wireless Debugging settings. The local web page accepted the Settings pairing code; the optimizer reported `connected` with verified identity. After force-stop and relaunch it re-discovered the dynamic endpoint and reconnected. No TV app was optimized.
 - D-pad selection of Apps, Diagnostics, and Advanced kept focus on the selected tab. The updated APK was also reinstalled on the Samsung tablet and still opened in the connected state.
+- Follow-up after four applications were configured: all four package IDs and installed-version entries survived the update. This TV returned exit code 255 from `cmd package help` despite listing `compile`; the capability probe now recognizes its usage entry. Diagnostics reports compilation available, and Optimize All is enabled. ART inspection is still unavailable and correctly uses command-level validation. Background discovery remains active while connected.
+- D-pad focus passed the package edit action to Optimize All without opening the keyboard. Select opened the explicit editor and keyboard; Back dismissed them, and D-pad navigation resumed. No configured application was optimized during this follow-up.
 
 Still unverified: Android 11/12 devices, TV optimization, iPhone Safari specifically, Wireless Debugging off/on and authorization-revocation recovery, two-package batch, version-update detection, console failure/cancel/clear behavior, and production-signed release.
 

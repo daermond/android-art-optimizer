@@ -18,6 +18,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,7 +34,10 @@ import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
@@ -111,6 +116,58 @@ private fun RemoteOutlinedButton(
     content: @Composable RowScope.() -> Unit,
 ) = OutlinedButton(onClick = onClick, modifier = modifier.then(remoteFocusModifier()),
     enabled = enabled, content = content)
+
+/** On TV, text entry is an explicit Select action instead of a stop in the D-pad path. */
+@Composable
+private fun AppTextInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    minLines: Int = 1,
+) {
+    val isTv = LocalConfiguration.current.uiMode and Configuration.UI_MODE_TYPE_MASK ==
+        Configuration.UI_MODE_TYPE_TELEVISION
+    if (!isTv) {
+        OutlinedTextField(value = value, onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(), label = { Text(label) }, minLines = minLines)
+        return
+    }
+    var editing by rememberSaveable { mutableStateOf(false) }
+    var opened by rememberSaveable { mutableStateOf(false) }
+    var draft by rememberSaveable { mutableStateOf(value) }
+    val buttonFocus = remember { FocusRequester() }
+    val fieldFocus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(editing) {
+        if (editing) fieldFocus.requestFocus()
+        else if (opened) buttonFocus.requestFocus()
+    }
+    RemoteOutlinedButton(onClick = { draft = value; opened = true; editing = true },
+        modifier = Modifier.focusRequester(buttonFocus)) {
+        Text(if (value.isBlank()) "Edit $label" else "$label: $value",
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+    if (editing) {
+        fun finish(save: Boolean) {
+            if (save) onValueChange(draft)
+            keyboard?.hide()
+            editing = false
+        }
+        AlertDialog(
+            onDismissRequest = { finish(false) },
+            title = { Text(label) },
+            text = {
+                OutlinedTextField(value = draft, onValueChange = { draft = it },
+                    modifier = Modifier.fillMaxWidth().focusRequester(fieldFocus),
+                    label = { Text(label) }, minLines = minLines,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { finish(true) }))
+            },
+            confirmButton = { RemoteButton(onClick = { finish(true) }) { Text("Done") } },
+            dismissButton = { RemoteOutlinedButton(onClick = { finish(false) }) { Text("Cancel") } },
+        )
+    }
+}
 
 @Composable
 private fun Page(content: @Composable () -> Unit) {
@@ -215,8 +272,8 @@ private fun AppsPage(state: UiState, model: OptimizerViewModel) = Page {
     val context = LocalContext.current
     Text("Configured applications", style = MaterialTheme.typography.titleLarge)
     var entry by rememberSaveable { mutableStateOf("") }
-    OutlinedTextField(value = entry, onValueChange = { entry = it }, modifier = Modifier.fillMaxWidth(),
-        label = { Text("Package ID or comma-separated list") }, minLines = 2)
+    AppTextInput(value = entry, onValueChange = { entry = it },
+        label = "Package ID or comma-separated list", minLines = 2)
     RemoteButton(onClick = { model.addPackages(entry); entry = "" }, enabled = entry.isNotBlank()) { Text("Add packages") }
     if (state.entryFeedback.isNotBlank()) Text(state.entryFeedback)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -273,8 +330,7 @@ private fun AppsPage(state: UiState, model: OptimizerViewModel) = Page {
     Text("Installed third-party packages", style = MaterialTheme.typography.titleMedium)
     if (!connected) Text("Connect to discover installed applications.")
     var filter by rememberSaveable { mutableStateOf("") }
-    OutlinedTextField(value = filter, onValueChange = { filter = it },
-        label = { Text("Filter packages") }, modifier = Modifier.fillMaxWidth())
+    AppTextInput(value = filter, onValueChange = { filter = it }, label = "Filter packages")
     state.installed.filter { it !in state.configured && it.value.contains(filter, ignoreCase = true) }
         .take(100).forEach { id ->
             RemoteOutlinedButton(onClick = { model.addPackages(id.value) }) { Text("Add ${id.value}") }
@@ -298,7 +354,8 @@ private fun ElapsedText(startedAt: Long, active: Boolean) {
 private fun DiagnosticsPage(state: UiState, model: OptimizerViewModel) = Page {
     Text("Diagnostics", style = MaterialTheme.typography.titleLarge)
     Text("Connection: ${state.connection}")
-    Text("Discovery: ${state.discoveryStatus}")
+    Text("Discovery service: ${state.discoveryStatus}" +
+        if (state.connection == ConnectionPhase.CONNECTED) " (runs in the background while connected)" else "")
     Text("Pairing endpoints: ${state.pairingEndpoints.size}; connect endpoints: ${state.connectEndpoints.size}")
     state.profile?.let {
         Text("Device: ${it.displayName}; SDK ${it.sdk}")
@@ -307,7 +364,7 @@ private fun DiagnosticsPage(state: UiState, model: OptimizerViewModel) = Page {
     }
     Text("Shell UID: ${state.shellUid.ifBlank { "unavailable" }}")
     Text("Compile command: ${if (state.compileAvailable) "available" else "unavailable"}")
-    Text("ART inspection: ${if (state.artAvailable) "available" else "unavailable"}")
+    Text("ART inspection: ${if (state.artAvailable) "available" else "unavailable; compilation uses command validation"}")
     RemoteOutlinedButton(onClick = model::retry) { Text("Retry") }
 }
 
@@ -320,8 +377,8 @@ private fun ConsolePage(state: UiState, model: OptimizerViewModel) = Page {
         return@Page
     }
     var command by rememberSaveable { mutableStateOf("") }
-    OutlinedTextField(value = command, onValueChange = { command = it },
-        label = { Text("Command after adb shell") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
+    AppTextInput(value = command, onValueChange = { command = it },
+        label = "Command after adb shell", minLines = 3)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RemoteButton(onClick = { model.runConsole(command) },
             enabled = !state.consoleRunning && !state.running && state.connection == ConnectionPhase.CONNECTED) { Text("Run") }

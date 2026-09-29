@@ -202,7 +202,7 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
         val art = runCatching { transport.shell(SafeAdbCommand.ArtHelp) }.getOrNull()
         val uid = runCatching { transport.shell(SafeAdbCommand.ShellUid).stdout.trim() }.getOrDefault("")
         mutable.update { if (it.connection != ConnectionPhase.CONNECTED) it else it.copy(
-            compileAvailable = compile?.succeeded == true && compile.output.contains("compile"),
+            compileAvailable = CapabilityProbe.supportsCompile(compile),
             artAvailable = art?.succeeded == true,
             shellUid = uid.take(20),
         ) }

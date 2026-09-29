@@ -48,6 +48,14 @@ data class ShellResult(val stdout: String, val stderr: String, val exitCode: Int
     val output: String get() = stdout + stderr
 }
 
+object CapabilityProbe {
+    // Some Android builds print complete package help yet return 255 for the help command.
+    private val compileUsage = Regex("(?im)^[ \\t]*compile[ \\t]+\\[")
+
+    fun supportsCompile(help: ShellResult?): Boolean =
+        help != null && compileUsage.containsMatchIn(help.output)
+}
+
 interface SafeShell {
     suspend fun shell(command: SafeAdbCommand): ShellResult
 }
