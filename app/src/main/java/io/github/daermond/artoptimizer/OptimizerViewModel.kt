@@ -212,7 +212,8 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
     private fun probeCapabilities() = viewModelScope.launch {
         try {
             val compile = transport.shell(SafeAdbCommand.CompileHelp)
-            val art = transport.shell(SafeAdbCommand.ArtHelp)
+            // OEMs may support dump while rejecting the undocumented `art help` sub-command.
+            val art = transport.shell(SafeAdbCommand.ArtDump(self))
             val uid = transport.shell(SafeAdbCommand.ShellUid).stdout.trim()
             mutable.update { if (it.connection != ConnectionPhase.CONNECTED) it else it.copy(
                 compileAvailable = CapabilityProbe.supportsCompile(compile),

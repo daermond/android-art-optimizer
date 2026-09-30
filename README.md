@@ -39,7 +39,7 @@ The web page is opt-in, binds to a local Wi-Fi/Ethernet address, uses a random o
 
 Pairing uses only mDNS-discovered endpoints on the same device. The ADB private key stays in app-private no-backup storage. Reconnect re-discovers the dynamic port, probes the shell, and checks the saved device identity. If a stable shell identifier is unavailable, the app labels its weaker model-based check.
 
-One Android 16 Samsung tablet has passed both notification and second-device web pairing, reconnect, console, and a disposable-app compile check. An Android 14 TV has passed launcher, D-pad navigation, web pairing, and reconnect checks. The remaining device matrix, iPhone Safari specifically, and production release signing are tracked in [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md).
+One Android 16 Samsung tablet has passed both notification and second-device web pairing, reconnect, console, and a disposable-app compile check. An Android 14 TV has passed launcher, D-pad navigation, web pairing, reconnect, disposable-app compilation with ART-state verification, and quiet-command/timeout recovery checks. The remaining device matrix, iPhone Safari specifically, and production release signing are tracked in [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md).
 
 ## Repository handoff
 

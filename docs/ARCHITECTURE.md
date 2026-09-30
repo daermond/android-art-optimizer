@@ -139,6 +139,8 @@ Persist a device profile after pairing. Prefer a stable shell-visible identifier
 
 Build a `DeviceCapabilities` record after connecting. Probe features such as package compilation and ART-state inspection rather than scattering SDK checks across UI/business logic.
 
+ART inspection is probed with a read-only `pm art dump` of the optimizer's own installed package. A rejected `pm art help` does not establish that inspection is unsupported; some OEM builds implement dump but reject help.
+
 ## Dependency rule
 
 ADB-library-specific classes must live only under the transport implementation. Domain/UI tests use fakes.

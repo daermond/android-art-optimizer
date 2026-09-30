@@ -70,6 +70,22 @@ class OptimizerCoreTest {
         assertEquals("Command validated", events.last().message)
     }
 
+    @Test fun artDumpCanValidateSpeedEvenWhenOemArtHelpIsUnsupported() = runBlocking {
+        val shell = object : SafeShell {
+            override suspend fun shell(command: SafeAdbCommand): ShellResult = when (command) {
+                SafeAdbCommand.ArtHelp -> ShellResult("", "Unknown 'art' sub-command 'help'", 1)
+                is SafeAdbCommand.ArtDump -> ShellResult(
+                    "[$target]\n  arm: [status=speed] [reason=cmdline] [primary-abi]", "", 0,
+                )
+                else -> FakeShell().shell(command)
+            }
+        }
+        assertFalse(shell.shell(SafeAdbCommand.ArtHelp).succeeded)
+        assertTrue(shell.shell(SafeAdbCommand.ArtDump(self)).succeeded)
+        val events = ArtOptimizer(shell).optimize(listOf(target), self).toList()
+        assertEquals(ValidationLevel.ART_STATE, events.last().record?.validationLevel)
+    }
+
     @Test fun missingAndCompileFailureAreTerminalWithoutFalseSuccess() = runBlocking {
         val missing = ArtOptimizer(FakeShell(missing = true)).optimize(listOf(target), self).toList()
         assertEquals(OptimizationPhase.SKIPPED, missing.last().phase)

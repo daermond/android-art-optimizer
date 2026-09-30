@@ -73,13 +73,19 @@ Smart TV Pro (G08), Android 14 (API 34), 1920×1080 display, same date:
 - Follow-up after four applications were configured: all four package IDs and installed-version entries survived the update. This TV returned exit code 255 from `cmd package help` despite listing `compile`; the capability probe now recognizes its usage entry. Diagnostics reports compilation available, and Optimize All is enabled. ART inspection is still unavailable and correctly uses command-level validation. Background discovery remains active while connected.
 - D-pad focus passed the package edit action to Optimize All without opening the keyboard. Select opened the explicit editor and keyboard; Back dismissed them, and D-pad navigation resumed. No configured application was optimized during this follow-up.
 
-Still unverified: Android 11/12 devices, TV optimization, iPhone Safari specifically, Wireless Debugging off/on and authorization-revocation recovery, two-package batch, version-update detection, console failure/cancel/clear behavior, and production-signed release.
+Still unverified: Android 11/12 devices, iPhone Safari specifically, Wireless Debugging off/on and authorization-revocation recovery, two-package batch, version-update detection, explicit console cancellation, and production-signed release.
 
 ### TV transport follow-up: 2026-09-30
 
 - User testing after compile-capability detection was fixed exposed `TLS write returned -1` and generic operation failures. Package refresh also failed while the UI still claimed Connected.
 - Transport operations now run serially with whole-operation deadlines rather than a 15-second socket-read timeout. A failed transport is discarded and exposed as unavailable with Retry; an interrupted batch stops without automatically replaying compilation.
-- JVM regression tests cover concurrent calls, socket-close timeout/cancellation, no automatic replay, and interrupted-compilation batch termination. Verification on the updated TV build is pending.
+- JVM regression tests cover concurrent calls, socket-close timeout/cancellation, no automatic replay, and interrupted-compilation batch termination.
+- Installed the updated APK on the same Smart TV Pro (Android 14) and reconnected with its saved credential. A disposable Java APK completed compilation twice, including on the final build after timeout recovery. `pm art dump` reported `[status=speed] [reason=cmdline]`; the optimizer recorded `Success` with `ART_STATE` validation.
+- This TV rejects `pm art help` while supporting `pm art dump`. The capability probe now inspects the optimizer's own package with the read-only dump command; Diagnostics correctly reports both compilation and ART inspection available.
+- The console completed `sleep 20` with exit code 0 and retained its connection. `sleep 60` reached the 30-second operation deadline, reported a timeout with Retry instructions, and changed the connection to unavailable. Retry restored connection, shell UID 2000, and both capabilities. Startup reconnect also passed after force-stop/relaunch.
+- On the final build, individual D-pad events moved focus from Edit to Optimize All with `mInputShown=false`. Select intentionally opened the editor and TV keyboard. Back dismissed the keyboard, then the editor, and restored focus to Edit with the keyboard hidden. The editor/keyboard layout was visually checked.
+- Removed the disposable package entry and uninstalled its APK. All four configured user apps remained, their existing optimization records were unchanged, and test console history/output were cleared. No existing user app was optimized by the agent during this check.
+- Final local gates: lint, 23 JVM tests, debug APK assembly, and APK signature verification passed.
 
 ## CI gates
 
