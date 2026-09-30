@@ -7,6 +7,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -21,6 +25,13 @@ jobs:
       - name: Install Android SDK 37
         run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
 
+      - name: Set release version
+        run: |
+          python3 -m unittest discover -s scripts/tests
+          python3 scripts/release_version.py "$GITHUB_REF_NAME" >> "$GITHUB_ENV"
+          test -f "docs/releases/${GITHUB_REF_NAME}.md"
+          test -f LICENSE
+
       - name: Validate signing secrets
         env:
           KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -33,10 +44,9 @@ jobs:
       - name: Decode signing keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-        run: printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
-
-      - name: Set version
-        run: echo "VERSION_NAME=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+        run: |
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
 
       - name: Check and build signed release
         env:
@@ -44,22 +54,37 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          VERSION_CODE: ${{ github.run_number }}
         run: ./gradlew --no-daemon lint testDebugUnitTest assembleRelease
 
-      - name: Rename and checksum
+      - name: Verify signature and package source
         run: |
-          APK=$(find app/build/outputs/apk/release -name '*.apk' -type f | head -n 1)
-          test -n "$APK"
-          cp "$APK" "android-art-optimizer-${GITHUB_REF_NAME}.apk"
-          sha256sum "android-art-optimizer-${GITHUB_REF_NAME}.apk" > "android-art-optimizer-${GITHUB_REF_NAME}.apk.sha256"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
+          cp app/build/outputs/apk/release/app-release.apk "android-art-optimizer-${GITHUB_REF_NAME}.apk"
+          python3 scripts/package-release-source.py "$GITHUB_REF_NAME"
+          sha256sum "android-art-optimizer-${GITHUB_REF_NAME}.apk" "android-art-optimizer-${GITHUB_REF_NAME}-source.zip" > SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt
 
-      - name: Create GitHub release
+      - name: Create draft release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh release create "$GITHUB_REF_NAME"
-          "android-art-optimizer-${GITHUB_REF_NAME}.apk"
-          "android-art-optimizer-${GITHUB_REF_NAME}.apk.sha256"
-          --generate-notes
-          --verify-tag
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --json isDraft -q .isDraft > "$RUNNER_TEMP/release-state" 2>/dev/null; then
+            test "$(cat "$RUNNER_TEMP/release-state")" = true || { echo 'Release is already published; refusing to replace assets.' >&2; exit 1; }
+          else
+            gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "Android ART Optimizer ${GITHUB_REF_NAME}" --notes-file "docs/releases/${GITHUB_REF_NAME}.md"
+          fi
+          gh release upload "$GITHUB_REF_NAME" "android-art-optimizer-${GITHUB_REF_NAME}.apk" "android-art-optimizer-${GITHUB_REF_NAME}-source.zip" SHA256SUMS.txt --clobber
+
+      - name: Verify uploaded assets and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir "$RUNNER_TEMP/release-download"
+          gh release download "$GITHUB_REF_NAME" --dir "$RUNNER_TEMP/release-download"
+          cmp SHA256SUMS.txt "$RUNNER_TEMP/release-download/SHA256SUMS.txt"
+          (cd "$RUNNER_TEMP/release-download" && sha256sum --check SHA256SUMS.txt)
+          gh release edit "$GITHUB_REF_NAME" --draft=false
+
+      - name: Remove runner signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.keystore"

@@ -1,95 +1,75 @@
 # Android ART Optimizer
 
-A small standalone Android utility that uses the device's own modern Wireless ADB interface to request ART/AOT optimization for user-selected applications.
+Optimize selected Android apps using Android's own ART compiler. Pair with Wireless Debugging on the same device, choose your apps, and run optimization from a phone, tablet, or TV remote.
 
-## Goals
+## What it does
 
-- Pair once with the local Android device using Wireless Debugging.
-- Re-discover the current ADB endpoint with mDNS on later launches.
-- Validate that the saved pairing still works every time the app starts.
-- Let the user select any installed third-party application or add package IDs manually/bulk as comma-separated text.
-- Optimize selected packages with `cmd package compile -m speed -f <package>`.
-- Show honest, phase-based progress and per-package results.
-- Validate the resulting ART state where the Android version exposes enough information.
-- Keep built-in optimizer commands allow-listed; provide raw shell commands only through the explicit Advanced console.
+- Optimizes Java/Kotlin code in selected apps using Android's `speed` compilation mode.
+- Lets you choose installed apps, enter a package ID, or paste a comma-separated list.
+- Offers two pairing methods on every device: notification reply or a QR-linked web page on a second device.
+- Shows actual phases, elapsed compilation time, and completed-app counts.
+- Verifies ART compiler state when available and clearly labels command-only validation otherwise.
+- Remembers your app list and results, reconnects on launch, and flags app version changes.
+- Includes an optional Advanced ADB Console for commands you explicitly enter.
 
-## Supported scope (v1)
+Benefits depend on the app and Android's existing compilation state. This targets managed app code; it does not optimize native libraries, graphics, video decoding, or network performance. The selected app is stopped during optimization and can be opened again afterward.
 
-- Android 11+ phones/tablets with modern Wireless Debugging.
-- Android TV / Google TV where modern Wireless Debugging is available; Android 13+ is the intended TV baseline.
-- Runtime capability detection is authoritative: unsupported OEM builds should fail gracefully.
-- No legacy `adb tcpip 5555` fallback in v1.
-- No root requirement.
+## Supported devices
 
-## Build
+| Device | Requirements |
+|---|---|
+| Phone or tablet | Android 11 or newer with **Wireless Debugging** |
+| Android TV / Google TV | Modern **Wireless Debugging**; Android 13+ is the intended baseline |
 
-The project uses the committed Gradle 9.3.1 wrapper, Android Gradle Plugin 9.1.1, compile SDK 37, and target SDK 35. The minimum supported runtime remains Android 11 (API 30). Set `ANDROID_HOME` or a Git-ignored `local.properties` pointing to the Android SDK, then run `scripts/check.ps1` on Windows or `scripts/check.sh` on Linux/macOS. The check runs lint, JVM tests, and a debug APK build.
+The app checks actual command support. An Android version alone does not guarantee that an OEM exposes the required features. Root is not required, and normal use does not need a computer.
 
-Kadb 2.1.4 provides TLS Wireless ADB pairing and mDNS discovery. Its `spake2-java` pairing dependency is GPL-3.0; see [`docs/DEPENDENCIES.md`](docs/DEPENDENCIES.md) and review redistribution terms before publishing an APK.
+Tested on a Samsung tablet with Android 16 and a TCL Smart TV Pro with Android 14. See the [test record](docs/TEST_PLAN.md) for details.
 
-## Usage
+## Install
 
-Enable Developer Options and Wireless Debugging on the device. The same two pairing choices appear on phones, tablets, and TVs. **Enter code in notification** lets you keep Android's pairing-code dialog open while replying from the notification shade. It needs notification permission and a usable notification shade. **Enter code on another device** shows a QR code for a temporary local HTTP page; scan it with another phone, tablet, or computer (including an iPhone) and enter the six-digit code there. On TV, use the remote's D-pad to choose a method, then select **Open Developer Options**; the QR code remains visible beside the steps. Both methods pair only with an ADB endpoint discovered on the Android device itself. After connection, add package IDs manually, as a comma-separated list, or from discovered third-party apps. Optimize one or all installed configured packages. The app shows actual phases, completed count, elapsed compilation time, and whether ART state could be inspected. The Advanced ADB Console runs only commands you explicitly enter and has a one-time warning.
+1. Open [GitHub Releases](https://github.com/daermond/android-art-optimizer/releases).
+2. Download the **`.apk`** attachment. The same APK is used on phones, tablets, and TVs.
+3. Open it on your Android device. If prompted, allow that browser or file manager to **install unknown apps**, then install.
+4. On TV, transfer the APK using a USB drive or a trusted file-transfer method, then open it with the TV's file manager. Look for **ART Optimizer** in the TV launcher.
 
-On TV, D-pad focus can pass package, filter, and console text entry without opening the keyboard. Select the relevant **Edit** action when you want to type. An unavailable ART-inspection command does not block compilation; successful runs are reported as command-validated instead.
+The checksum and source archive are separate attachments; only the APK is needed to install. This repository is currently private, so GitHub access is required to download its releases.
 
-Compilation can run for up to five minutes; other shell operations and the console have a 30-second limit. Connection failures stop the batch and show **Retry**. An interrupted compile has an unknown result and is never replayed automatically. Cancelling the console closes the connection; select Retry before the next command.
+**Moving from an early test build:** the production release uses a permanent signing key. Android cannot install it over the debug-signed test build. Note your configured package IDs, uninstall the test build, then install the release and pair again. Future official release updates use the same key and can update the previous release in place.
 
-The web page is opt-in, binds to a local Wi-Fi/Ethernet address, uses a random one-time URL, permits at most three code submissions, and closes after pairing, cancellation, or three minutes. Use it only on a trusted home network: HTTP does not hide the code from a local network attacker. A phone being paired needs a **second** device to scan its QR code.
+## First use
 
-Pairing uses only mDNS-discovered endpoints on the same device. The ADB private key stays in app-private no-backup storage. Reconnect re-discovers the dynamic port, probes the shell, and checks the saved device identity. If a stable shell identifier is unavailable, the app labels its weaker model-based check.
+1. Enable **Developer Options** and **Wireless Debugging** in Android Settings.
+2. Open ART Optimizer and choose a pairing method.
+3. In Settings, open **Wireless Debugging → Pair device with pairing code** and leave the code dialog open.
+4. Enter the code through the chosen method:
+   - **Enter code in notification:** reply to the optimizer's notification while the Settings dialog remains open. Allow notifications if asked.
+   - **Enter code on another device:** scan the QR code with another phone, tablet, or computer on the same local network and enter the Settings code on that page. An iPhone can use the page too.
+5. Wait for **Connected**, then open **Apps**.
+6. Add an installed app or enter its package ID, then select **Optimize**. **Optimize All eligible** processes your configured installed apps one at a time.
 
-One Android 16 Samsung tablet has passed both notification and second-device web pairing, reconnect, console, and a disposable-app compile check. An Android 14 TV has passed launcher, D-pad navigation, web pairing, reconnect, disposable-app compilation with ART-state verification, and quiet-command/timeout recovery checks. The remaining device matrix, iPhone Safari specifically, and production release signing are tracked in [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md).
+On TV, use the D-pad and Select. Text entry starts only after selecting **Edit**. **Open Developer Options** provides a shortcut to Settings.
 
-## Repository handoff
+Keep Android's code dialog open until pairing completes. The QR page uses temporary HTTP on the local network; use a trusted network. A phone using this method needs a second device. See the [user guide](docs/USER_GUIDE.md) for detailed steps and troubleshooting.
 
-Coding agents should read, in order:
+## Results and recovery
 
-1. [`AGENTS.md`](AGENTS.md)
-2. [`docs/SPEC.md`](docs/SPEC.md)
-3. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-4. [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md)
-5. [implementation issue #1](https://github.com/daermond/android-art-optimizer/issues/1)
+| Result | Meaning |
+|---|---|
+| Success / ART_STATE | Compilation succeeded and Android reported the `speed` compiler state. |
+| Success / COMMAND | Compilation succeeded, but full ART-state inspection was unavailable. |
+| Updated since optimization | The installed app version changed; optimize again if you want to compile the new version. |
+| Connection unavailable | Enable Wireless Debugging and select **Retry**. Use **Pair Again** if Android revoked authorization. |
 
-Do not redesign settled product decisions unless implementation proves one impossible.
+Compilation has a five-minute limit. Other shell commands, including the console, normally have a 30-second limit. An interrupted compile is not repeated automatically because its result may be unknown. Cancelling the console closes its connection; select Retry afterward.
 
-## Local checks
+## Help and project information
 
-Linux/macOS:
+- [Detailed user guide](docs/USER_GUIDE.md)
+- [Report a problem](https://github.com/daermond/android-art-optimizer/issues)
+- [Build and contribute](docs/CONTRIBUTING.md)
+- [Release maintenance](docs/RELEASE.md)
+- [Dependency licenses](docs/DEPENDENCIES.md)
 
-```bash
-./scripts/check.sh
-```
+Licensed under [GPLv3](LICENSE). Releases include the matching source archive and [third-party notices](THIRD_PARTY_NOTICES.md).
 
-PowerShell:
-
-```powershell
-./scripts/check.ps1
-```
-
-## GitHub bootstrap
-
-If this folder is not yet a GitHub repository, install/authenticate the GitHub CLI, then run:
-
-```powershell
-./scripts/bootstrap-github.ps1
-```
-
-or:
-
-```bash
-./scripts/bootstrap-github.sh
-```
-
-The script creates a private `android-art-optimizer` repository, pushes `main`, creates useful labels, and opens the implementation issue from `docs/IMPLEMENTATION_ISSUE.md`.
-
-## Releases
-
-CI runs lint, unit tests, and a debug build on pushes and pull requests.
-
-Tagged releases (`v*`) build a signed release APK and create a GitHub Release. Configure signing once with `scripts/setup-github-signing.sh` or the equivalent GitHub repository secrets described in [`docs/RELEASE.md`](docs/RELEASE.md).
-
-
-## Advanced Custom ADB Console
-
-The v1 plan includes an explicit Advanced console for running one-shot local `adb shell` commands and viewing stdout/stderr/result. Built-in optimizer commands remain isolated and allow-listed.
+When reporting a problem, include the device model, Android version, Diagnostics state, and displayed error. Do not share pairing codes or private credentials.

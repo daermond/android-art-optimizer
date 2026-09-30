@@ -9,8 +9,14 @@ build/
 .cxx/
 *.jks
 *.keystore
+*.p12
+secrets/
 release.keystore
 *.apk
 *.aab
 captures/
 .DS_Store
+__pycache__/
+*.pyc
+android-art-optimizer-v*-source.zip
+SHA256SUMS.txt
