@@ -86,6 +86,27 @@ class OptimizerCoreTest {
         assertTrue(shell.commands.isEmpty())
     }
 
+    @Test fun lostConnectionStopsBatchAndNeverReplaysAnInterruptedCompile() = runBlocking {
+        val other = requireNotNull(PackageId.parse("com.example.other"))
+        val commands = mutableListOf<SafeAdbCommand>()
+        val shell = object : SafeShell {
+            override suspend fun shell(command: SafeAdbCommand): ShellResult {
+                commands += command
+                if (command is SafeAdbCommand.CompileSpeed) throw AdbConnectionException("TLS failure")
+                return FakeShell().shell(command)
+            }
+        }
+        val events = ArtOptimizer(shell).optimize(listOf(target, other), self).toList()
+        assertEquals(OptimizationPhase.FAILED, events.last().phase)
+        assertTrue(events.last().connectionLost)
+        assertTrue(events.last().message.contains("result unknown"))
+        assertEquals(1, events.last().completed)
+        assertEquals(2, events.last().total)
+        assertEquals(1, commands.count { it is SafeAdbCommand.CompileSpeed })
+        assertFalse(events.any { it.packageId == other })
+        assertNull(events.last().record)
+    }
+
     @Test fun consolePrefixOnlyChangesExplicitConsoleInput() {
         assertEquals("pm list packages -3", ConsoleCommand.normalize("adb shell pm list packages -3"))
         assertEquals("pm list packages -3", ConsoleCommand.normalize("pm list packages -3"))

@@ -33,6 +33,8 @@ Enable Developer Options and Wireless Debugging on the device. The same two pair
 
 On TV, D-pad focus can pass package, filter, and console text entry without opening the keyboard. Select the relevant **Edit** action when you want to type. An unavailable ART-inspection command does not block compilation; successful runs are reported as command-validated instead.
 
+Compilation can run for up to five minutes; other shell operations and the console have a 30-second limit. Connection failures stop the batch and show **Retry**. An interrupted compile has an unknown result and is never replayed automatically. Cancelling the console closes the connection; select Retry before the next command.
+
 The web page is opt-in, binds to a local Wi-Fi/Ethernet address, uses a random one-time URL, permits at most three code submissions, and closes after pairing, cancellation, or three minutes. Use it only on a trusted home network: HTTP does not hide the code from a local network attacker. A phone being paired needs a **second** device to scan its QR code.
 
 Pairing uses only mDNS-discovered endpoints on the same device. The ADB private key stays in app-private no-backup storage. Reconnect re-discovers the dynamic port, probes the shell, and checks the saved device identity. If a stable shell identifier is unavailable, the app labels its weaker model-based check.

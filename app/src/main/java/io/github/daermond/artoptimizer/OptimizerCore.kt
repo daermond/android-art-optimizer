@@ -115,6 +115,7 @@ data class OptimizationEvent(
     val message: String = "",
     val record: OptimizationRecord? = null,
     val atMillis: Long = System.currentTimeMillis(),
+    val connectionLost: Boolean = false,
 )
 
 fun terminalRecord(previous: OptimizationRecord?, event: OptimizationEvent): OptimizationRecord? {
@@ -136,8 +137,11 @@ class ArtOptimizer(private val shell: SafeShell, private val now: () -> Long = S
         var completed = 0
         val selected = packages.distinct()
         for (id in selected) {
-            suspend fun event(phase: OptimizationPhase, message: String = "", record: OptimizationRecord? = null) {
-                emit(OptimizationEvent(id, phase, completed, selected.size, message, record, now()))
+            var currentPhase = OptimizationPhase.QUEUED
+            suspend fun event(phase: OptimizationPhase, message: String = "", record: OptimizationRecord? = null,
+                connectionLost: Boolean = false) {
+                currentPhase = phase
+                emit(OptimizationEvent(id, phase, completed, selected.size, message, record, now(), connectionLost))
             }
             event(OptimizationPhase.QUEUED)
             try {
@@ -182,6 +186,8 @@ class ArtOptimizer(private val shell: SafeShell, private val now: () -> Long = S
                     shell.shell(SafeAdbCommand.ArtDump(id))
                 } catch (cancelled: CancellationException) {
                     throw cancelled
+                } catch (lost: AdbConnectionException) {
+                    throw lost
                 } catch (_: Exception) {
                     null
                 }
@@ -192,6 +198,13 @@ class ArtOptimizer(private val shell: SafeShell, private val now: () -> Long = S
                 event(OptimizationPhase.COMPLETED, if (level == ValidationLevel.ART_STATE) "ART state verified" else "Command validated", record)
             } catch (cancelled: CancellationException) {
                 throw cancelled
+            } catch (lost: AdbConnectionException) {
+                val message = if (currentPhase == OptimizationPhase.COMPILING)
+                    "Compilation interrupted; result unknown. Retry the connection, then optimize again."
+                else "ADB connection lost during ${currentPhase.name.lowercase()}. Retry the connection."
+                completed++
+                event(OptimizationPhase.FAILED, message, connectionLost = true)
+                return@flow
             } catch (error: Exception) {
                 completed++
                 event(OptimizationPhase.FAILED, error.message?.take(200) ?: "Operation failed")

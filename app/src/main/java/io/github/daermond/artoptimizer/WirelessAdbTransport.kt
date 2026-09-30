@@ -6,7 +6,6 @@ import com.flyfishxu.kadb.cert.KadbCert
 import com.flyfishxu.kadb.cert.KadbCertPolicy
 import com.flyfishxu.kadb.cert.OkioFilePrivateKeyStore
 import com.flyfishxu.kadb.shell.AdbShellPacket
-import com.flyfishxu.kadb.shell.AdbShellStream
 import com.flyfishxu.kadb.mdns.KadbMdnsAndroid
 import com.flyfishxu.kadb.mdns.MdnsConfig
 import com.flyfishxu.kadb.mdns.MdnsDiscoveryState
@@ -18,6 +17,7 @@ import kotlinx.coroutines.withContext
 import okio.Path.Companion.toPath
 import java.io.File
 import java.net.NetworkInterface
+import java.util.concurrent.atomic.AtomicReference
 
 data class DeviceProfile(
     val manufacturer: String,
@@ -54,8 +54,8 @@ class WirelessAdbTransport(context: Context) : DeviceTransport {
         appContext,
         MdnsConfig(serviceTypes = setOf(MdnsServiceType.TLS_PAIRING, MdnsServiceType.TLS_CONNECT)),
     )
-    private var client: Kadb? = null
-    @Volatile private var activeRawStream: AdbShellStream? = null
+    private val client = AtomicReference<Kadb?>()
+    private val operations = AdbOperationRunner()
 
     init {
         KadbCert.configure(
@@ -87,12 +87,15 @@ class WirelessAdbTransport(context: Context) : DeviceTransport {
         Kadb.pair(endpoint.host, endpoint.port, code)
     }
 
-    override suspend fun connect(endpoint: MdnsEndpoint): DeviceProfile = withContext(Dispatchers.IO) {
+    override suspend fun connect(endpoint: MdnsEndpoint): DeviceProfile = operations.run(30_000, ::disconnect) {
         require(endpoint.serviceType == MdnsServiceType.TLS_CONNECT)
         require(isLocalEndpoint(endpoint)) { "Endpoint is not on this device" }
         require(hasCredential) { "Pair this device first" }
         disconnect()
-        val next = Kadb.create(endpoint.host, endpoint.port, connectTimeout = 5_000, socketTimeout = 15_000)
+        // Keep a long fallback bound as Kadb cannot close a handshake before it publishes its socket.
+        // Shorter operation deadlines below close an established transport, including quiet reads.
+        val next = Kadb.create(endpoint.host, endpoint.port, connectTimeout = 5_000, socketTimeout = 300_000)
+        client.set(next)
         try {
             val probe = next.shell(SafeCommandRenderer.render(SafeAdbCommand.Probe))
             check(probe.exitCode == 0 && probe.output.trim() == "art-optimizer-ready") {
@@ -110,7 +113,7 @@ class WirelessAdbTransport(context: Context) : DeviceTransport {
                 prop(SafeAdbCommand.Sdk),
                 id,
             )
-            client = next
+            check(client.get() === next) { "Connection setup was cancelled" }
             profile
         } catch (error: Exception) {
             next.close()
@@ -118,61 +121,64 @@ class WirelessAdbTransport(context: Context) : DeviceTransport {
         }
     }
 
-    override suspend fun shell(command: SafeAdbCommand): ShellResult = withContext(Dispatchers.IO) {
+    override suspend fun shell(command: SafeAdbCommand): ShellResult = operations.run(
+        if (command is SafeAdbCommand.CompileSpeed) 300_000 else 30_000, ::disconnect,
+    ) {
         execute(SafeCommandRenderer.render(command))
     }
 
-    override suspend fun shellRaw(command: String): ShellResult = withContext(Dispatchers.IO) {
-        val connected = client ?: throw IllegalStateException("Connect to Wireless Debugging first")
+    override suspend fun shellRaw(command: String): ShellResult = operations.run(30_000, ::disconnect) {
+        val connected = client.get() ?: throw IllegalStateException("Connect to Wireless Debugging first")
         check(connected.supportsFeature("shell_v2")) { "Console requires shell v2 for bounded output" }
+        if (client.get() !== connected) {
+            connected.close()
+            throw IllegalStateException("Connection was cancelled")
+        }
         val stdout = StringBuilder()
         val stderr = StringBuilder()
         val limit = 80_000
         connected.openShell(command).use { stream ->
-            activeRawStream = stream
-            try {
-                while (true) {
-                    val packet = stream.read()
-                    if (packet is AdbShellPacket.Exit) {
-                        return@withContext ShellResult(stdout.toString(), stderr.toString(),
-                            packet.payload[0].toUByte().toInt())
-                    }
-                    val destination = if (packet is AdbShellPacket.StdError) stderr else stdout
-                    val remaining = limit - stdout.length - stderr.length
-                    if (remaining <= 0) {
-                        return@withContext ShellResult(stdout.toString(), stderr.toString(), null, truncated = true)
-                    }
-                    val chunk = String(packet.payload)
-                    destination.append(chunk.take(remaining))
-                    if (chunk.length > remaining) {
-                        return@withContext ShellResult(stdout.toString(), stderr.toString(), null, truncated = true)
-                    }
+            while (true) {
+                val packet = stream.read()
+                if (packet is AdbShellPacket.Exit) {
+                    return@run ShellResult(stdout.toString(), stderr.toString(),
+                        packet.payload[0].toUByte().toInt())
                 }
-                @Suppress("UNREACHABLE_CODE")
-                ShellResult(stdout.toString(), stderr.toString(), null)
-            } finally {
-                activeRawStream = null
+                val destination = if (packet is AdbShellPacket.StdError) stderr else stdout
+                val remaining = limit - stdout.length - stderr.length
+                if (remaining <= 0) {
+                    return@run ShellResult(stdout.toString(), stderr.toString(), null, truncated = true)
+                }
+                val chunk = String(packet.payload)
+                destination.append(chunk.take(remaining))
+                if (chunk.length > remaining) {
+                    return@run ShellResult(stdout.toString(), stderr.toString(), null, truncated = true)
+                }
             }
+            @Suppress("UNREACHABLE_CODE")
+            ShellResult(stdout.toString(), stderr.toString(), null)
         }
     }
 
     private fun execute(command: String): ShellResult {
-        val connected = client ?: throw IllegalStateException("Connect to Wireless Debugging first")
+        val connected = client.get() ?: throw IllegalStateException("Connect to Wireless Debugging first")
         val exitCodeAvailable = connected.supportsFeature("shell_v2")
+        if (client.get() !== connected) {
+            connected.close()
+            throw IllegalStateException("Connection was cancelled")
+        }
         val response = connected.shell(command)
         return ShellResult(response.output, response.errorOutput,
             if (exitCodeAvailable) response.exitCode else null)
     }
 
     override fun disconnect() {
-        cancelRaw()
-        client?.close()
-        client = null
+        client.getAndSet(null)?.close()
     }
 
     override fun cancelRaw() {
-        runCatching { activeRawStream?.close() }
-        activeRawStream = null
+        // Closing the socket also wakes a console read that has not received a packet yet.
+        disconnect()
     }
 
     override fun forgetCredential() {

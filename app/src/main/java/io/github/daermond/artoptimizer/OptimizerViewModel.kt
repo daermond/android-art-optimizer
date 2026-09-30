@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.coroutines.withTimeout
 
 enum class ConnectionPhase {
     NOT_PAIRED, SEARCHING_PAIR, PAIRING, SEARCHING_CONNECT, CONNECTING,
@@ -64,6 +63,8 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
     private var connectionJob: Job? = null
     private var optimizationJob: Job? = null
     private var consoleJob: Job? = null
+    private var refreshJob: Job? = null
+    private var capabilityJob: Job? = null
 
     init {
         transport.startDiscovery()
@@ -87,6 +88,10 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun retry() {
+        if (mutable.value.running || mutable.value.consoleRunning) return
+        refreshJob?.cancel()
+        capabilityJob?.cancel()
+        transport.disconnect()
         connectionJob?.cancel()
         connectionJob = viewModelScope.launch {
             if (!persistence.paired || !transport.hasCredential) {
@@ -133,8 +138,8 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
                 mutable.update { it.copy(connection = ConnectionPhase.CONNECTED, profile = profile,
                     detail = if (profile.strongIdentity) "Connected; device identity verified"
                     else "Connected; model-based identity check only") }
-                refreshApps()
-                probeCapabilities()
+                probeCapabilities().join()
+                refreshApps().join()
                 return
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -152,6 +157,8 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
         connectionJob?.cancel()
         optimizationJob?.cancel()
         consoleJob?.cancel()
+        refreshJob?.cancel()
+        capabilityJob?.cancel()
         try {
             transport.forgetCredential()
             persistence.paired = false
@@ -167,45 +174,61 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
             detail = "Choose a pairing method below, then open the Wireless Debugging pairing-code dialog.") }
     }
 
-    fun refreshApps() = viewModelScope.launch {
-        if (mutable.value.connection != ConnectionPhase.CONNECTED) return@launch
-        try {
-            val response = transport.shell(SafeAdbCommand.ListThirdPartyPackages)
-            if (!response.succeeded) throw IllegalStateException()
-            val discovered = PackageOutputParser.thirdPartyPackages(response.stdout)
-            val installedConfigured = mutableListOf<PackageId>()
-            val versions = buildMap {
-                for (id in mutable.value.configured) {
-                    val path = transport.shell(SafeAdbCommand.PackagePath(id))
-                    if (path.succeeded && path.stdout.contains("package:")) {
-                        installedConfigured += id
-                        val dump = transport.shell(SafeAdbCommand.PackageDump(id))
-                        val (code, name) = PackageOutputParser.version(dump.stdout)
-                        put(id, InstalledPackage(id, code, name))
+    fun refreshApps(): Job {
+        refreshJob?.takeIf { it.isActive }?.let { return it }
+        return viewModelScope.launch {
+            if (mutable.value.connection != ConnectionPhase.CONNECTED) return@launch
+            try {
+                val response = transport.shell(SafeAdbCommand.ListThirdPartyPackages)
+                if (!response.succeeded) throw IllegalStateException()
+                val discovered = PackageOutputParser.thirdPartyPackages(response.stdout)
+                val installedConfigured = mutableListOf<PackageId>()
+                val versions = buildMap {
+                    for (id in mutable.value.configured) {
+                        val path = transport.shell(SafeAdbCommand.PackagePath(id))
+                        if (path.succeeded && path.stdout.contains("package:")) {
+                            installedConfigured += id
+                            val dump = transport.shell(SafeAdbCommand.PackageDump(id))
+                            val (code, name) = PackageOutputParser.version(dump.stdout)
+                            put(id, InstalledPackage(id, code, name))
+                        }
                     }
                 }
+                persistence.saveSeenVersions(versions)
+                mutable.update { current -> if (current.connection == ConnectionPhase.CONNECTED)
+                    current.copy(installed = (discovered + installedConfigured).distinct(), versions = versions)
+                    else current }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (lost: AdbConnectionException) {
+                connectionLost(lost.message.orEmpty())
+            } catch (_: Exception) {
+                mutable.update { current -> if (current.connection == ConnectionPhase.CONNECTED)
+                    current.copy(detail = "Connected, but package discovery failed. Retry refresh.") else current }
             }
-            persistence.saveSeenVersions(versions)
-            mutable.update { current -> if (current.connection == ConnectionPhase.CONNECTED)
-                current.copy(installed = (discovered + installedConfigured).distinct(), versions = versions)
-                else current }
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (_: Exception) {
-            mutable.update { current -> if (current.connection == ConnectionPhase.CONNECTED)
-                current.copy(detail = "Connected, but package discovery failed. Retry refresh.") else current }
-        }
+        }.also { refreshJob = it }
     }
 
     private fun probeCapabilities() = viewModelScope.launch {
-        val compile = runCatching { transport.shell(SafeAdbCommand.CompileHelp) }.getOrNull()
-        val art = runCatching { transport.shell(SafeAdbCommand.ArtHelp) }.getOrNull()
-        val uid = runCatching { transport.shell(SafeAdbCommand.ShellUid).stdout.trim() }.getOrDefault("")
-        mutable.update { if (it.connection != ConnectionPhase.CONNECTED) it else it.copy(
-            compileAvailable = CapabilityProbe.supportsCompile(compile),
-            artAvailable = art?.succeeded == true,
-            shellUid = uid.take(20),
-        ) }
+        try {
+            val compile = transport.shell(SafeAdbCommand.CompileHelp)
+            val art = transport.shell(SafeAdbCommand.ArtHelp)
+            val uid = transport.shell(SafeAdbCommand.ShellUid).stdout.trim()
+            mutable.update { if (it.connection != ConnectionPhase.CONNECTED) it else it.copy(
+                compileAvailable = CapabilityProbe.supportsCompile(compile),
+                artAvailable = art.succeeded,
+                shellUid = uid.take(20),
+            ) }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (lost: AdbConnectionException) {
+            connectionLost(lost.message.orEmpty())
+        }
+    }.also { capabilityJob = it }
+
+    private fun connectionLost(message: String) {
+        mutable.update { it.copy(connection = ConnectionPhase.UNAVAILABLE, compileAvailable = false,
+            artAvailable = false, shellUid = "", detail = message) }
     }
 
     fun addPackages(raw: String) {
@@ -227,8 +250,8 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
     fun optimize(ids: List<PackageId>) {
         if (mutable.value.connection != ConnectionPhase.CONNECTED || !mutable.value.compileAvailable ||
             mutable.value.running || mutable.value.consoleRunning) return
+        mutable.update { it.copy(running = true, activeEvent = null) }
         optimizationJob = viewModelScope.launch {
-            mutable.update { it.copy(running = true, activeEvent = null) }
             try {
                 optimizer.optimize(ids, self).collect { event ->
                     mutable.update { current ->
@@ -238,6 +261,7 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
                         if (latest != null) persistence.saveRecords(records)
                         current.copy(activeEvent = event, records = records)
                     }
+                    if (event.connectionLost) connectionLost(event.message)
                 }
                 refreshApps()
             } finally {
@@ -263,12 +287,12 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
             mutable.update { it.copy(consoleResult = "Enter a command of at most 2,000 characters") }
             return
         }
+        persistence.addHistory(command)
+        mutable.update { it.copy(consoleRunning = true, consoleStartedAt = System.currentTimeMillis(),
+            consoleOutput = "", consoleResult = "Running", consoleHistory = persistence.history()) }
         consoleJob = viewModelScope.launch {
-            persistence.addHistory(command)
-            mutable.update { it.copy(consoleRunning = true, consoleStartedAt = System.currentTimeMillis(),
-                consoleOutput = "", consoleResult = "Running", consoleHistory = persistence.history()) }
             try {
-                val response = withTimeout(30_000) { transport.shellRaw(command) }
+                val response = transport.shellRaw(command)
                 val output = buildString {
                     if (response.stdout.isNotEmpty()) append("stdout:\n").append(response.stdout.take(64_000))
                     if (response.stderr.isNotEmpty()) append("\nstderr:\n").append(response.stderr.take(16_000))
@@ -278,6 +302,9 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
                         else response.exitCode?.let { code -> "Exit code: $code" } ?: "Exit code unavailable") }
             } catch (_: CancellationException) {
                 mutable.update { it.copy(consoleResult = "Cancelled") }
+            } catch (lost: AdbConnectionException) {
+                connectionLost(lost.message.orEmpty())
+                mutable.update { it.copy(consoleResult = lost.message.orEmpty()) }
             } catch (_: Exception) {
                 mutable.update { it.copy(consoleResult = "Command failed or timed out") }
             } finally {
@@ -289,6 +316,7 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
     fun cancelConsole() {
         transport.cancelRaw()
         consoleJob?.cancel()
+        connectionLost("Console cancelled. Retry the connection before running another command.")
     }
     fun clearConsoleOutput() { mutable.update { it.copy(consoleOutput = "", consoleResult = "") } }
     fun clearConsoleHistory() {
