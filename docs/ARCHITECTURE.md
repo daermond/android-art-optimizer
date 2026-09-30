@@ -108,6 +108,10 @@ Configured
   -> Connected
 
 Failures are states with Retry/Pair Again transitions; pairing data is not deleted automatically.
+
+The transport serializes connection setup, built-in shell commands, and console commands. Socket reads have no short idle timeout: a quiet ART compilation may take longer than 15 seconds. A cancellable operation deadline closes an established socket to unblock reads (five minutes for compilation; 30 seconds for setup, other commands, and console). Kadb 2.1.4 does not expose an in-progress handshake socket to `close`, so a five-minute socket-read fallback bounds that library limitation. Cancelled sessions are checked before shell execution. Transport failures discard the connection, switch the UI to Retry, and stop the current optimization batch. A command is never automatically replayed after an uncertain result. Cancelling the console also closes its connection and requires Retry.
+
+Pairing input is handled by a short-lived `connectedDevice` foreground service so Android Settings can remain visible. It owns mDNS discovery and the pairing attempt; the ViewModel observes session state and reconnects after the service stores a successful pairing. Notification `RemoteInput` and a QR-linked local HTTP server are two front ends to the same pairing operation. The HTTP server accepts only six-digit codes on a random session path, checks Host and rejects foreign Origin headers when supplied (some mobile browsers omit them), and has bounded requests, submissions, and lifetime. Neither input path accepts ADB shell text.
 ```
 
 ## Optimization state machine
@@ -134,6 +138,8 @@ Persist a device profile after pairing. Prefer a stable shell-visible identifier
 ## Capability probing
 
 Build a `DeviceCapabilities` record after connecting. Probe features such as package compilation and ART-state inspection rather than scattering SDK checks across UI/business logic.
+
+ART inspection is probed with a read-only `pm art dump` of the optimizer's own installed package. A rejected `pm art help` does not establish that inspection is unsupported; some OEM builds implement dump but reject help.
 
 ## Dependency rule
 

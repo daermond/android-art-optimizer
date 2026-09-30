@@ -30,12 +30,14 @@ The app must guide the user through:
 2. Enable Wireless Debugging.
 3. Choose "Pair device with pairing code" in Android settings.
 4. App discovers `_adb-tls-pairing._tcp` via mDNS.
-5. User enters the six-digit pairing code.
+5. User chooses either notification reply on the Android device or a temporary local web page reached by QR code on a second device. The same two choices are available on phones, tablets, and TVs. The app receives the six-digit code without closing the Settings pairing dialog.
 6. App pairs and stores its ADB credential securely.
 7. App discovers `_adb-tls-connect._tcp` via mDNS.
 8. App connects, executes a harmless shell probe, and records a device identity profile.
 
 Do not persist a dynamic ADB port as the primary reconnect mechanism.
+
+The temporary HTTP page is user-started, bound only to a local Wi-Fi/Ethernet address, protected by a high-entropy one-time URL, rate-limited to three code submissions, and closed after success, cancellation, or a short timeout. It must accept pairing codes only; never expose shell commands or stored credentials. Explain that HTTP on an untrusted local network can reveal the pairing code. Notification input requires visible notifications and may be unavailable on some devices.
 
 ## 5. Startup reconnect / validation
 
