@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-Create a small standalone Android utility that improves ART/Dex execution for explicitly selected applications by connecting to the device's own modern Wireless ADB daemon and running Android package compilation commands.
+Create a small standalone Android utility that improves ART/Dex execution for explicitly selected applications by connecting to the device's own ADB daemon and running Android package compilation commands. Modern Wireless Debugging is the Wi-Fi path; issue #14 adds standard authenticated TCP ADB on the device's Ethernet addresses where firmware exposes it.
 
 It is intentionally generic. Expected targets include Nuvio variants, SmartTube, forks, and other sideloaded or Play-distributed applications.
 
@@ -10,7 +10,7 @@ It is intentionally generic. Expected targets include Nuvio variants, SmartTube,
 
 - Host-side/general-purpose ADB tooling beyond the explicit local shell console described in section 15.
 - Root management.
-- Legacy `adb tcpip 5555`, USB-first pairing, or Android <=10 compatibility.
+- Enabling `adb tcpip 5555`, physical USB transports, USB-first pairing, or Android <=10 compatibility. Issue #14 permits connecting to an already exposed same-device Ethernet ADB listener on port 5555.
 - Native `.so`, GPU, WebView/JavaScript, codec, or network optimization.
 - Automatic optimization of every installed package.
 - Silent execution requested by another application.
@@ -18,7 +18,7 @@ It is intentionally generic. Expected targets include Nuvio variants, SmartTube,
 ## 3. Platform scope
 
 - App `minSdk`: API 30 (Android 11).
-- Modern Wireless Debugging is required.
+- Modern Wireless Debugging is required for Wi-Fi. Ethernet requires firmware exposing network ADB, sometimes controlled by the TV's USB debugging setting.
 - TV support is capability based; Android 13+ is the intended baseline.
 - At launch, probe actual support. Never assume an OEM exposes all AOSP behavior solely from SDK level.
 
@@ -30,12 +30,14 @@ The app must guide the user through:
 2. Enable Wireless Debugging.
 3. Choose "Pair device with pairing code" in Android settings.
 4. App discovers `_adb-tls-pairing._tcp` via mDNS.
-5. User enters the six-digit pairing code.
+5. User chooses either notification reply on the Android device or a temporary local web page reached by QR code on a second device. The same two choices are available on phones, tablets, and TVs. The app receives the six-digit code without closing the Settings pairing dialog.
 6. App pairs and stores its ADB credential securely.
 7. App discovers `_adb-tls-connect._tcp` via mDNS.
 8. App connects, executes a harmless shell probe, and records a device identity profile.
 
 Do not persist a dynamic ADB port as the primary reconnect mechanism.
+
+The temporary HTTP page is user-started, bound only to a local Wi-Fi/Ethernet address, protected by a high-entropy one-time URL, rate-limited to three code submissions, and closed after success, cancellation, or a short timeout. It must accept pairing codes only; never expose shell commands or stored credentials. Explain that HTTP on an untrusted local network can reveal the pairing code. Notification input requires visible notifications and may be unavailable on some devices.
 
 ## 5. Startup reconnect / validation
 
@@ -56,6 +58,16 @@ On every app start:
 7. Provide Retry and Pair Again actions where appropriate.
 
 A transient failure must not erase pairing/configuration automatically.
+
+### Ethernet and automatic network detection (issue #14)
+
+- Detect Wi-Fi/Ethernet links and addresses with runtime network callbacks; public internet is not required.
+- Keep the existing wireless pairing and mDNS flow. Try a current local TLS endpoint first when available; otherwise Ethernet may connect only to port 5555 on a current Ethernet address of this device.
+- A fresh Ethernet session creates/reuses the same app-protected RSA credential and lets Android request authorization. Never scan other devices, accept arbitrary hosts, or enable a debugging service through shell commands.
+- Record the device profile only after the harmless probe and identity validation succeed. Preserve saved identity, key, packages, and records on failure.
+- Reconnect automatically on network/address changes. Cancel and join interrupted optimization/console jobs before reconnecting; never resume a batch or replay a command. Show that an interrupted operation may have an unknown result.
+- Show the actual connected link (Wi-Fi/Ethernet), ADB path, and actionable debugging/authorization text. Ethernet ADB is unencrypted and should be used on a trusted network.
+- Unsupported Ethernet debugging is a normal capability failure; guide the user to USB/network debugging if their firmware supports it, or Wi-Fi Wireless Debugging otherwise.
 
 ## 6. Device identity
 
@@ -288,7 +300,7 @@ No caller may trigger background/silent ADB commands.
 - Raw shell text is accepted only in the explicit Advanced ADB Console and never reused by built-in workflows or external intents.
 - External requests require confirmation.
 - Redact secrets from diagnostics/exported logs.
-- Network connections are only to locally discovered ADB endpoints selected/verified by the app.
+- Network connections are only to locally discovered TLS ADB endpoints or port 5555 on current same-device Ethernet addresses, selected/verified by the app.
 
 ## 18. Error handling
 
