@@ -2,7 +2,7 @@
 
 Implement v1 of the standalone **Android ART Optimizer** according to `docs/SPEC.md` and `docs/ARCHITECTURE.md`.
 
-Do not redesign the already-decided scope. In particular: modern Wireless ADB only; no legacy TCP fallback; generic package list; include the explicitly user-operated Advanced ADB Console described in the spec.
+The original v1 scope is retained except for the explicitly authorized [Ethernet extension in issue #14](https://github.com/daermond/android-art-optimizer/issues/14): standard TCP ADB on the device's current Ethernet addresses, port 5555, where firmware already exposes it. Preserve the working modern wireless pairing flow; no physical USB/root transport, LAN scan, or `adb tcpip` enablement is added. Keep the generic package list and explicitly user-operated Advanced ADB Console described in the spec.
 
 ## Deliverables
 
