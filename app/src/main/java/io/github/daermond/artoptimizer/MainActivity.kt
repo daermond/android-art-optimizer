@@ -66,7 +66,10 @@ private fun OptimizerApp(model: OptimizerViewModel = viewModel()) {
         Surface(modifier = Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().safeDrawingPadding().padding(if (isTv) 32.dp else 16.dp)) {
                 Text("Android ART Optimizer", style = MaterialTheme.typography.headlineSmall)
-                Text("Wireless Debugging: ${state.connection.name.replace('_', ' ').lowercase()}")
+                val endpoint = state.endpoint
+                Text(if (state.connection == ConnectionPhase.CONNECTED && endpoint != null)
+                    "Connected over ${LocalConnectionPolicy.connectionLabel(endpoint, state.network)}"
+                    else "ADB: ${state.connection.name.replace('_', ' ').lowercase()} · ${state.network.label}")
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("Device", "Apps", "Diagnostics", "Advanced").forEachIndexed { index, label ->
@@ -179,7 +182,13 @@ private fun Page(content: @Composable () -> Unit) {
 private fun DevicePage(state: UiState, model: OptimizerViewModel, isTv: Boolean) = Page {
     Text("Device and connection", style = MaterialTheme.typography.titleLarge)
     state.profile?.let { Text(it.displayName) }
+    Text("Network: ${state.network.label}")
+    state.endpoint?.let { Text("ADB connection: ${it.kind.label}") }
     Text(state.detail.ifBlank { "Enable Wireless Debugging in Developer Options." })
+    if (state.networkNotice.isNotBlank()) Text(state.networkNotice)
+    if (state.network.hasEthernet) {
+        Text("Ethernet is detected automatically. On supported TVs, enable USB debugging in Developer Options and accept Android's authorization prompt for this app. Ethernet ADB is unencrypted; use a trusted local network.")
+    }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RemoteOutlinedButton(onClick = model::retry) { Text("Retry") }
         RemoteOutlinedButton(onClick = model::pairAgain,
@@ -354,6 +363,8 @@ private fun ElapsedText(startedAt: Long, active: Boolean) {
 private fun DiagnosticsPage(state: UiState, model: OptimizerViewModel) = Page {
     Text("Diagnostics", style = MaterialTheme.typography.titleLarge)
     Text("Connection: ${state.connection}")
+    Text("Network: ${state.network.label}")
+    Text("ADB path: ${state.endpoint?.kind?.label ?: "not connected"}")
     Text("Discovery service: ${state.discoveryStatus}" +
         if (state.connection == ConnectionPhase.CONNECTED) " (runs in the background while connected)" else "")
     Text("Pairing endpoints: ${state.pairingEndpoints.size}; connect endpoints: ${state.connectEndpoints.size}")
