@@ -12,6 +12,10 @@ $name = gh api user -q '.name // .login'
 
 if (-not (Test-Path .git)) {
     git init -b main
+}
+$headCommit = git rev-parse --verify HEAD 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git branch -M main
     git config user.name $name
     git config user.email "$login@users.noreply.github.com"
     git add .
