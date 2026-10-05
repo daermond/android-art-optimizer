@@ -11,7 +11,7 @@ The APK includes these projects and their transitive runtime components:
 | Kotlin, kotlinx.coroutines | Apache-2.0 | https://github.com/JetBrains/kotlin, https://github.com/Kotlin/kotlinx.coroutines |
 | Kadb and Kadb mDNS 2.1.4 | Apache-2.0 | https://github.com/flyfishxu/Kadb |
 | Okio | Apache-2.0 | https://github.com/square/okio |
-| ZXing core 3.5.3 | Apache-2.0 | https://github.com/zxing/zxing |
+| ZXing core 3.5.4 | Apache-2.0 | https://github.com/zxing/zxing |
 | spake2-java 1.1.1 | GPL-3.0 | https://github.com/Flyfish233/spake2-java |
 | ed25519-elisabeth / curve25519-elisabeth 0.1.0 | MIT, with the upstream BSD attribution | https://github.com/cryptography-cafe/ed25519-elisabeth, https://github.com/cryptography-cafe/curve25519-elisabeth |
 

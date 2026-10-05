@@ -9,6 +9,6 @@ Keep this file updated when adding non-AndroidX dependencies.
 | kotlinx-coroutines-android 1.9.0 | Async connection and command execution | Apache-2.0 | Android dispatcher for UI-facing state. |
 | [spake2-java 1.1.1](https://github.com/Flyfish233/spake2-java) | Kadb pairing transitive dependency | GPL-3.0 | Resolved from JitPack, restricted to its group. App is GPLv3; matching sources are included with releases. |
 | ed25519-elisabeth / curve25519-elisabeth 0.1.0 | Pairing cryptography, transitive dependencies | MIT | Source archives and upstream attribution are included with releases. |
-| [ZXing core 3.5.3](https://github.com/zxing/zxing) | Render a QR code for the local pairing page | Apache-2.0 | QR generation is local; no scan or cloud service. |
+| [ZXing core 3.5.4](https://github.com/zxing/zxing) | Render a QR code for the local pairing page | Apache-2.0 | QR generation is local; no scan or cloud service. |
 
 See [third-party notices](../THIRD_PARTY_NOTICES.md) and the licenses bundled in the APK. Release helper scripts use Python's standard library and add no app dependency.
