@@ -91,6 +91,12 @@ Retain only bounded console output/history. Console history belongs to local app
 
 ## Connection state machine
 
+Issue #14 adds `LocalNetworkMonitor` behind an interface. Its Android implementation observes physical Wi-Fi/Ethernet `NetworkCapabilities` and `LinkProperties` with callbacks; VPN/cellular networks and internet validation are not used for LAN selection. `LocalConnectionPolicy` is a JVM-testable candidate/recovery policy. Wireless pairing, notification/QR input, and the Kadb mDNS lifecycle retain their existing behavior.
+
+The existing transport also connects to authenticated standard ADB on port 5555 of a current Ethernet address. It uses the same app-private key, shell probe, identity validation, serialization, and deadlines. No physical USB transport or `adb tcpip` command is added. TLS candidates precede Ethernet TCP when already advertised. A network change removes stale local candidates, closes the old session, and cancels/joins active work before reconnecting; optimization and console commands are never resumed. The UI reports the connected medium separately from the ADB protocol.
+
+Standard ADB authorization can wait for Android's on-device prompt. Kadb's existing unpublished-handshake limitation and five-minute socket fallback also apply to this setup; no short socket-idle timeout is introduced for quiet compilations.
+
 ```text
 Unconfigured
   -> DiscoveringPairEndpoint
