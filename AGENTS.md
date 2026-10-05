@@ -7,7 +7,7 @@ Read `docs/SPEC.md`, `docs/ARCHITECTURE.md`, `docs/TEST_PLAN.md`, and the implem
 ## Product decisions that are already settled
 
 - This is a **standalone generic Android app optimizer**, not part of Nuvio.
-- v1 supports only **modern Wireless ADB**. Do not add legacy TCP/USB/root transports unless a later issue explicitly requests them.
+- Modern Wireless ADB remains the Wi-Fi path. Issue #14 additionally authorizes same-device TCP ADB on current Ethernet addresses, port 5555, when firmware exposes it. Do not add physical USB/root transports, LAN scans, arbitrary hosts, or commands that enable `adb tcpip`.
 - `minSdk` is Android 11 / API 30.
 - Phones/tablets: Android 11+ if Wireless Debugging works.
 - TV: intended baseline Android 13+, but always use runtime capability detection rather than version alone.
