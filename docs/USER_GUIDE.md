@@ -4,7 +4,7 @@
 
 ART Optimizer asks Android to compile managed code in apps you choose. Benefits vary because some apps are already well compiled by Android. Save work in the target app first: optimization stops it before compilation.
 
-You need Android 11+ and modern **Wireless Debugging**. TV support depends on the manufacturer; Android 13+ is the intended baseline. Actual commands are detected after connecting.
+You need Android 11+ and modern **Wireless Debugging** over Wi-Fi, or firmware supporting network ADB over Ethernet. TV support depends on the manufacturer; Android 13+ is the intended baseline. Actual commands are detected after connecting.
 
 ## Installation and updates
 
@@ -23,7 +23,18 @@ The repository is currently private. Downloading its releases requires a GitHub 
 3. Open **Developer Options**, enable **Wireless Debugging**, and allow debugging on the current trusted network.
 4. Leave Wireless Debugging enabled while using the optimizer. It discovers changing ports automatically.
 
-A device that has only USB debugging and no modern Wireless Debugging pairing screen cannot use this app's current connection method.
+A device with only USB debugging can use Ethernet only if that setting also enables its network ADB listener; the app detects this at runtime.
+
+## Connect over Ethernet
+
+1. Connect the Ethernet cable. The app detects the device's own address automatically; no IP entry or manual connection-mode switch is needed.
+2. On supported TVs, enable **USB debugging** (or the firmware's network debugging setting) in Developer Options. On the tested TCL firmware, this enables Ethernet ADB even though Wireless Debugging is disabled.
+3. If Android shows an authorization prompt for ART Optimizer, approve it on the TV. Choose its remember/always-allow option if you want authorization retained, then use **Retry** if needed.
+4. Look for **Connected over Ethernet**. Diagnostics also shows the ADB path. If no service is available, the app explains the missing debugging/authorization step. Some devices cannot expose Ethernet ADB; use Wi-Fi and the existing Wireless Debugging pairing methods on those devices.
+
+Use a trusted local network: standard Ethernet ADB is unencrypted. **Select debug app** is unrelated to ADB authorization; leave **Wait for debugger** off.
+
+Changing between Ethernet and Wi-Fi triggers automatic reconnection using saved credentials where authorized. Wireless pairing works as before. If work is interrupted, its result may be unknown: wait for reconnection and explicitly run it again. The app never resumes compilation or console commands automatically.
 
 ## Pair through a notification
 
@@ -79,7 +90,7 @@ Both pairing methods are offered on TV. If its notification shade cannot accept 
 | Problem | What to try |
 |---|---|
 | Not paired | Start a pairing method and use a fresh Settings code. |
-| Searching or unavailable | Enable Wireless Debugging, check the network, and select **Retry**. |
+| Searching or unavailable | On Wi-Fi, enable Wireless Debugging. On Ethernet, enable the TV's USB/network debugging and accept Android's authorization prompt. Check the network and select **Retry**. |
 | Authentication rejected | Retry first. If Android removed authorization, use **Pair Again**. |
 | Compile command unavailable | Check Diagnostics; the OEM's Android build may not expose compilation. |
 | ART inspection unavailable | Compilation can still work with command-level validation. |
