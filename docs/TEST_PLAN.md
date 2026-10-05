@@ -17,6 +17,8 @@
 - Raw console command path cannot be reached from built-in optimizer command factories or external intents.
 - Console history is bounded, persisted locally as designed, and can be fully cleared.
 - Local pairing page rejects unknown session URLs, cross-origin posts, malformed codes, and expired sessions; no code appears in the URL or response.
+- Network detection/candidate policy: Wi-Fi remains TLS-only; Ethernet permits only current same-device addresses on port 5555; advertised TLS is preferred; remote hosts, hostnames, loopback, invalid ports, and stale addresses are rejected; IPv6 normalization preserves link-local scope.
+- Network recovery: unchanged snapshots do nothing, address/link changes reconnect automatically, and interrupted work is stopped before reconnecting without replaying compilation or console commands.
 
 ## Instrumented tests (where practical)
 
@@ -86,6 +88,15 @@ Still unverified: Android 11/12 devices, iPhone Safari specifically, Wireless De
 - On the final build, individual D-pad events moved focus from Edit to Optimize All with `mInputShown=false`. Select intentionally opened the editor and TV keyboard. Back dismissed the keyboard, then the editor, and restored focus to Edit with the keyboard hidden. The editor/keyboard layout was visually checked.
 - Removed the disposable package entry and uninstalled its APK. All four configured user apps remained, their existing optimization records were unchanged, and test console history/output were cleared. No existing user app was optimized by the agent during this check.
 - Final local gates: lint, 23 JVM tests, debug APK assembly, and APK signature verification passed.
+
+### Ethernet implementation check: 2026-10-05 (issue #14)
+
+- The user identified the TV as TCL C765; firmware reports TCL Smart TV Pro/G08, Android 14 (API 34). Ethernet disabled Wi-Fi and Wireless Debugging. Port 5555 refused connections until the user enabled USB debugging, then a desktop ADB connection and harmless probe succeeded.
+- Updated the already installed debug APK in place without clearing data. The app automatically detected Ethernet, connected to its own current address using its existing stored credential, and displayed **Connected over Ethernet**, **Ethernet ADB**, and verified device identity. No IP was entered in the app.
+- Diagnostics showed shell UID 2000, compilation available, ART inspection available, and zero TLS pairing/connect advertisements. Force-stop/relaunch automatically reconnected over Ethernet.
+- SHA-256 comparisons of the configured-package and optimization-record preference values confirmed they were preserved across the update and connection. No configured app was optimized, and no console command was executed during this check. The Device screen was visually checked at 1920×1080.
+- Local validation: `scripts/check.ps1` (lint, 31 JVM tests, debug assembly) and five release-helper regression tests passed. Existing lint warnings remain; no tests or lint checks were disabled.
+- Physical Ethernet ↔ Wi-Fi/cable-removal switching, fresh-install RSA authorization/denial, revoked wired authorization, and Ethernet interruption during compilation remain unverified on the TV. Candidate/recovery decisions and blocked-operation cancellation/no replay have offline regression coverage. Existing wireless pairing/notification/QR and Kadb mDNS lifecycle are retained; wireless pairing was not repeated during this Ethernet check.
 
 ## CI gates
 
