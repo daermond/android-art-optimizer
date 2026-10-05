@@ -4,7 +4,7 @@ Installation and operation are documented in the [README](../README.md) and [use
 
 ## Development setup
 
-The project uses Kotlin, Compose, the committed Gradle 9.3.1 wrapper, Android Gradle Plugin 9.1.1, compile SDK 37, and target SDK 35. Use JDK 17 and an Android SDK, with `ANDROID_HOME` or a Git-ignored `local.properties` pointing to it. The minimum runtime is API 30.
+The project uses Kotlin, Compose, the committed Gradle 9.8.0 wrapper, Android Gradle Plugin 9.4.1, compile SDK 37, and target SDK 35. Use JDK 17 and an Android SDK, with `ANDROID_HOME` or a Git-ignored `local.properties` pointing to it. The minimum runtime is API 30.
 
 Run `scripts/check.ps1` on Windows or `scripts/check.sh` on Linux/macOS for lint, JVM tests, and debug APK assembly. The APK is at `app/build/outputs/apk/debug/app-debug.apk`.
 

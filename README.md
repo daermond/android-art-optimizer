@@ -1,6 +1,6 @@
 # Android ART Optimizer
 
-Optimize selected Android apps using Android's own ART compiler. Pair with Wireless Debugging on the same device, choose your apps, and run optimization from a phone, tablet, or TV remote.
+Optimize selected Android apps using Android's own ART compiler. Connect with Wireless Debugging or supported Ethernet ADB on the same device, choose your apps, and run optimization from a phone, tablet, or TV remote.
 
 ## What it does
 
@@ -10,6 +10,7 @@ Optimize selected Android apps using Android's own ART compiler. Pair with Wirel
 - Shows actual phases, elapsed compilation time, and completed-app counts.
 - Verifies ART compiler state when available and clearly labels command-only validation otherwise.
 - Remembers your app list and results, reconnects on launch, and flags app version changes.
+- Detects Wi-Fi/Ethernet and switches connections automatically, showing the active connection and any required debugging/authorization steps.
 - Includes an optional Advanced ADB Console for commands you explicitly enter.
 
 Benefits depend on the app and Android's existing compilation state. This targets managed app code; it does not optimize native libraries, graphics, video decoding, or network performance. The selected app is stopped during optimization and can be opened again afterward.
@@ -19,7 +20,7 @@ Benefits depend on the app and Android's existing compilation state. This target
 | Device | Requirements |
 |---|---|
 | Phone or tablet | Android 11 or newer with **Wireless Debugging** |
-| Android TV / Google TV | Modern **Wireless Debugging**; Android 13+ is the intended baseline |
+| Android TV / Google TV | Modern **Wireless Debugging**, or firmware exposing Ethernet ADB; Android 13+ is the intended baseline |
 
 The app checks actual command support. An Android version alone does not guarantee that an OEM exposes the required features. Root is not required, and normal use does not need a computer.
 
@@ -37,6 +38,8 @@ The checksum and source archive are separate attachments; only the APK is needed
 **Moving from an early test build:** the production release uses a permanent signing key. Android cannot install it over the debug-signed test build. Note your configured package IDs, uninstall the test build, then install the release and pair again. Future official release updates use the same key and can update the previous release in place.
 
 ## First use
+
+For Ethernet on supported TVs, connect the cable and enable **USB debugging** (or network debugging) in Developer Options. ART Optimizer detects the local address automatically. Approve Android's authorization prompt if shown and look for **Connected over Ethernet**. Standard Ethernet ADB is unencrypted; use a trusted local network. The following Wi-Fi pairing steps remain unchanged.
 
 1. Enable **Developer Options** and **Wireless Debugging** in Android Settings.
 2. Open ART Optimizer and choose a pairing method.
