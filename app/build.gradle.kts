@@ -60,7 +60,7 @@ android {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
+    val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
@@ -74,7 +74,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("com.flyfishxu:kadb:2.1.4")
     implementation("com.flyfishxu:kadb-mdns:2.1.4")
-    implementation("com.google.zxing:core:3.5.3")
+    implementation("com.google.zxing:core:3.5.4")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 
