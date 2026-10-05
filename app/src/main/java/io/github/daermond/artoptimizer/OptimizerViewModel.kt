@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -27,6 +28,9 @@ data class UiState(
     val pairingEndpoints: List<MdnsEndpoint> = emptyList(),
     val connectEndpoints: List<MdnsEndpoint> = emptyList(),
     val discoveryStatus: MdnsStatus = MdnsStatus.STOPPED,
+    val network: LocalNetworkState = LocalNetworkState(),
+    val endpoint: LocalAdbEndpoint? = null,
+    val networkNotice: String = "",
     val pairingSession: PairingSessionState = PairingSessionState(),
     val configured: List<PackageId> = emptyList(),
     val installed: List<PackageId> = emptyList(),
@@ -65,6 +69,7 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
     private var consoleJob: Job? = null
     private var refreshJob: Job? = null
     private var capabilityJob: Job? = null
+    private var recoveryJob: Job? = null
 
     init {
         transport.startDiscovery()
@@ -83,8 +88,44 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
                 if (session.status == PairingStatus.PAIRED) retry()
             }
         }
-        if (persistence.paired && transport.hasCredential) retry()
+        viewModelScope.launch {
+            var previous = transport.network.value
+            mutable.update { it.copy(network = previous) }
+            transport.network.collect { current ->
+                val action = LocalConnectionPolicy.recovery(previous, current,
+                    mutable.value.running || mutable.value.consoleRunning, persistence.paired && transport.hasCredential)
+                previous = current
+                mutable.update { it.copy(network = current,
+                    pairingEndpoints = transport.discovery.value.pairDevices.filter(transport::isLocalEndpoint),
+                    connectEndpoints = transport.discovery.value.connectDevices.filter(transport::isLocalEndpoint)) }
+                if (action != NetworkRecovery.KEEP) networkChanged(action)
+            }
+        }
+        if ((persistence.paired && transport.hasCredential) || transport.network.value.hasEthernet) retry()
         else mutable.update { it.copy(connection = ConnectionPhase.NOT_PAIRED) }
+    }
+
+    private fun networkChanged(action: NetworkRecovery) {
+        recoveryJob?.cancel()
+        recoveryJob = viewModelScope.launch {
+            val interrupted = action == NetworkRecovery.STOP_AND_RECONNECT
+            connectionJob?.cancel()
+            refreshJob?.cancel()
+            capabilityJob?.cancel()
+            transport.disconnect()
+            optimizationJob?.cancel()
+            consoleJob?.cancel()
+            mutable.update { it.copy(connection = ConnectionPhase.UNAVAILABLE, endpoint = null,
+                activeEvent = if (interrupted) null else it.activeEvent,
+                compileAvailable = false, artAvailable = false, shellUid = "",
+                detail = "Network changed. Detecting the local ADB connection.",
+                networkNotice = if (interrupted) "Network changed during an operation. Its result may be unknown; run it again explicitly after reconnecting." else it.networkNotice) }
+            // Join before reconnecting: no cancelled command or batch is ever replayed.
+            optimizationJob?.join()
+            consoleJob?.join()
+            if (transport.network.value.addresses().isNotEmpty()) retry()
+            else mutable.update { it.copy(detail = "No local network. Connect Wi-Fi or Ethernet; ADB will reconnect automatically.") }
+        }
     }
 
     fun retry() {
@@ -94,7 +135,7 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
         transport.disconnect()
         connectionJob?.cancel()
         connectionJob = viewModelScope.launch {
-            if (!persistence.paired || !transport.hasCredential) {
+            if ((!persistence.paired || !transport.hasCredential) && !transport.network.value.hasEthernet) {
                 mutable.update { it.copy(connection = ConnectionPhase.NOT_PAIRED) }
                 return@launch
             }
@@ -111,22 +152,29 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
         runCatching { PairingService.stop(getApplication()) }
     }
 
-    private suspend fun connectToDiscovered(saved: DeviceProfile?, preferredHost: String? = null) {
-        mutable.update { it.copy(connection = ConnectionPhase.SEARCHING_CONNECT, detail = "Searching for Wireless Debugging") }
+    private suspend fun connectToDiscovered(saved: DeviceProfile?) {
+        val wired = transport.network.value.hasEthernet
+        mutable.update { it.copy(connection = ConnectionPhase.SEARCHING_CONNECT, endpoint = null,
+            detail = if (wired) "Ethernet detected. Enable USB debugging on TVs that use it for network ADB, and accept Android's authorization prompt if shown."
+                else "Searching for Wireless Debugging") }
         val endpoints = withTimeoutOrNull(20_000) {
-            transport.discovery.first { it.connectDevices.any(transport::isLocalEndpoint) }
-                .connectDevices.filter(transport::isLocalEndpoint)
+            combine(transport.discovery, transport.network) { discovery, network ->
+                LocalConnectionPolicy.candidates(network, discovery.connectDevices.map {
+                    LocalAdbEndpoint(it.name, it.host, it.port, AdbConnectionKind.TLS)
+                }.filter { persistence.paired && transport.hasCredential })
+            }.first { it.isNotEmpty() }
         }
         if (endpoints.isNullOrEmpty()) {
             mutable.update { it.copy(connection = ConnectionPhase.UNAVAILABLE,
                 detail = "No modern Wireless Debugging endpoint found. Enable Wireless Debugging and retry.") }
             return
         }
-        val ordered = endpoints.sortedBy { if (it.host == preferredHost) 0 else 1 }
         var wrongDevice = false
-        for (endpoint in ordered) {
+        for (endpoint in endpoints) {
             mutable.update { it.copy(connection = ConnectionPhase.CONNECTING,
-                detail = "Connecting to ${endpoint.name}") }
+                detail = if (endpoint.kind == AdbConnectionKind.ETHERNET_TCP)
+                    "Connecting over Ethernet. Enable USB debugging and accept this app's Android authorization prompt if shown."
+                else "Connecting to ${endpoint.name}") }
             try {
                 val profile = transport.connect(endpoint)
                 if (saved != null && !profile.matches(saved)) {
@@ -135,9 +183,11 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
                     continue
                 }
                 persistence.saveProfile(profile)
+                persistence.paired = true
                 mutable.update { it.copy(connection = ConnectionPhase.CONNECTED, profile = profile,
-                    detail = if (profile.strongIdentity) "Connected; device identity verified"
-                    else "Connected; model-based identity check only") }
+                    endpoint = endpoint,
+                    detail = "Connected over ${LocalConnectionPolicy.connectionLabel(endpoint, transport.network.value)}; " +
+                        if (profile.strongIdentity) "device identity verified" else "model-based identity check only") }
                 probeCapabilities().join()
                 refreshApps().join()
                 return
@@ -147,12 +197,15 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
                 transport.disconnect()
             }
         }
-        mutable.update { it.copy(connection = if (wrongDevice) ConnectionPhase.WRONG_DEVICE else ConnectionPhase.AUTH_FAILED,
+        mutable.update { it.copy(connection = if (wrongDevice) ConnectionPhase.WRONG_DEVICE
+                else if (wired) ConnectionPhase.UNAVAILABLE else ConnectionPhase.AUTH_FAILED,
             detail = if (wrongDevice) "Discovered device did not match the saved profile"
+                else if (wired) "Ethernet ADB unavailable or not authorized. Enable USB debugging in Developer Options, accept Android's authorization prompt, then Retry. Some devices do not expose ADB over Ethernet."
                 else "Could not authenticate. Retry or Pair Again if authorization was revoked.") }
     }
 
     fun pairAgain() {
+        recoveryJob?.cancel()
         stopPairing()
         connectionJob?.cancel()
         optimizationJob?.cancel()
@@ -170,8 +223,10 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
             return
         }
         mutable.update { it.copy(connection = ConnectionPhase.NOT_PAIRED, profile = null,
+            endpoint = null,
             compileAvailable = false, artAvailable = false, shellUid = "", installed = emptyList(),
             detail = "Choose a pairing method below, then open the Wireless Debugging pairing-code dialog.") }
+        if (transport.network.value.hasEthernet) retry()
     }
 
     fun refreshApps(): Job {
@@ -228,7 +283,7 @@ class OptimizerViewModel(application: Application) : AndroidViewModel(applicatio
     }.also { capabilityJob = it }
 
     private fun connectionLost(message: String) {
-        mutable.update { it.copy(connection = ConnectionPhase.UNAVAILABLE, compileAvailable = false,
+        mutable.update { it.copy(connection = ConnectionPhase.UNAVAILABLE, endpoint = null, compileAvailable = false,
             artAvailable = false, shellUid = "", detail = message) }
     }
 
