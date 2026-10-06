@@ -99,6 +99,13 @@ Still unverified: Android 11/12 devices, iPhone Safari specifically, Wireless De
 - Local validation: `scripts/check.ps1` (lint, 31 JVM tests, debug assembly) and five release-helper regression tests passed. Existing lint warnings remain; no tests or lint checks were disabled.
 - Physical Wi-Fi → Ethernet return switching, fresh-install RSA authorization/denial, revoked wired authorization, and Ethernet interruption during compilation remain unverified on the TV. Candidate/recovery decisions and blocked-operation cancellation/no replay have offline regression coverage. Existing wireless pairing/notification/QR and Kadb mDNS lifecycle are retained; a fresh wireless pairing was not repeated during this Ethernet check.
 
+### Permanent APK release candidate: 2026-10-06 (PR #17)
+
+- Updated the TCL C765/Smart TV Pro (Android 14) from its existing debug build to the current `0.2.0-dev` candidate in place, using the same debug signing certificate. The complete shared-preferences file had the same SHA-256 before and immediately after installation.
+- The app launched successfully and remained in the foreground. UI inspection showed **Connected over Ethernet**, **Ethernet ADB**, and verified device identity. The user reported that the app works. No optimization was triggered by the agent.
+- Local checks passed lint, 31 JVM tests, debug assembly, signed candidate assembly, and 12 release-helper tests. Both workflow files passed YAML parsing and actionlint validation. The stable and versioned copies of the signed candidate had identical SHA-256 values and the existing production certificate.
+- This is debug-build device validation. Production APK download/signature/version/source verification and the live permanent URL check belong to the v0.2.1 publication gate; the broader device matrix above was not repeated.
+
 ## CI gates
 
 - `lint`

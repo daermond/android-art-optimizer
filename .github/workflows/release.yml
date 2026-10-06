@@ -62,8 +62,9 @@ jobs:
         run: |
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
           cp app/build/outputs/apk/release/app-release.apk "android-art-optimizer-${GITHUB_REF_NAME}.apk"
+          cp app/build/outputs/apk/release/app-release.apk android-art-optimizer.apk
           python3 scripts/package-release-source.py "$GITHUB_REF_NAME"
-          sha256sum "android-art-optimizer-${GITHUB_REF_NAME}.apk" "android-art-optimizer-${GITHUB_REF_NAME}-source.zip" > SHA256SUMS.txt
+          sha256sum "android-art-optimizer-${GITHUB_REF_NAME}.apk" android-art-optimizer.apk "android-art-optimizer-${GITHUB_REF_NAME}-source.zip" > SHA256SUMS.txt
           sha256sum --check SHA256SUMS.txt
 
       - name: Create draft release
@@ -75,7 +76,7 @@ jobs:
           else
             gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "Android ART Optimizer ${GITHUB_REF_NAME}" --notes-file "docs/releases/${GITHUB_REF_NAME}.md"
           fi
-          gh release upload "$GITHUB_REF_NAME" "android-art-optimizer-${GITHUB_REF_NAME}.apk" "android-art-optimizer-${GITHUB_REF_NAME}-source.zip" SHA256SUMS.txt --clobber
+          gh release upload "$GITHUB_REF_NAME" "android-art-optimizer-${GITHUB_REF_NAME}.apk" android-art-optimizer.apk "android-art-optimizer-${GITHUB_REF_NAME}-source.zip" SHA256SUMS.txt --clobber
 
       - name: Verify uploaded assets and publish
         env:
@@ -86,6 +87,20 @@ jobs:
           cmp SHA256SUMS.txt "$RUNNER_TEMP/release-download/SHA256SUMS.txt"
           (cd "$RUNNER_TEMP/release-download" && sha256sum --check SHA256SUMS.txt)
           gh release edit "$GITHUB_REF_NAME" --draft=false
+
+      - name: Verify permanent latest APK URL
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest_tag="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)"
+          if [ "$latest_tag" = "$GITHUB_REF_NAME" ]; then
+            curl --fail --location --retry 5 --retry-all-errors --retry-delay 5 \
+              "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/android-art-optimizer.apk" \
+              --output "$RUNNER_TEMP/latest.apk"
+            cmp android-art-optimizer.apk "$RUNNER_TEMP/latest.apk"
+          else
+            echo "GitHub latest is $latest_tag; this release's assets were verified before publication."
+          fi
 
       - name: Remove runner signing key
         if: always()
