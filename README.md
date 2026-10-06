@@ -39,9 +39,11 @@ The checksum and source archive are separate attachments; only the APK is needed
 
 [Download the latest Android APK](https://github.com/daermond/android-art-optimizer/releases/latest/download/android-art-optimizer.apk)
 
-This permanent URL is intended for direct installation tools such as AFTVnews Downloader. It uses GitHub's latest published production release, so the URL stays the same across releases. Drafts and prereleases do not become the normal installation target. The URL becomes available with the first release containing the stable APK asset; older releases contain only the versioned APK.
+This permanent URL is intended for direct installation tools such as AFTVnews Downloader. It uses GitHub's latest published production release, so the URL stays the same across releases. Drafts and prereleases do not become the normal installation target. The stable APK asset is available starting with v0.2.1; earlier releases contain only the versioned APK.
 
-A numeric Downloader code can be created once this URL is live. AFTVnews rejects a destination that does not exist yet; enter the permanent URL directly after the first release, or use the code once it has been added here.
+**Downloader code: `4146071`**
+
+Enter **4146071** in the Downloader app's URL/code field, or open [aftv.news/4146071](https://aftv.news/4146071) in a browser. The code points to the permanent APK URL above, so future releases need no new code. Only one APK is needed for installation.
 
 The repository is public, so downloads require no GitHub login. If it becomes private, anonymous Downloader downloads will require public distribution again; never put credentials or tokens in the URL.
 

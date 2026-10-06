@@ -56,9 +56,9 @@ Permanent URL for AFTVnews Downloader and other direct installation tools:
 
 Use regular published production releases. GitHub selects `latest` directly; drafts and prereleases are excluded. The existing strict `vmajor.minor.patch` tag validation remains unchanged. When GitHub selects the newly published release as latest, the workflow downloads this URL without authentication, follows GitHub's redirects, and compares the bytes with that release's stable APK. A failure in this final check is reported after publication; inspect the published assets instead of replacing them through a rerun. When publishing an older maintenance version that GitHub does not select as latest, its assets still undergo the pre-publication checksum checks.
 
-The first release with this change activates the permanent URL. Older releases are not retrofitted. A numeric Downloader code should target this permanent URL, so it needs no update for future releases. If the repository becomes private, this URL will no longer work for anonymous Downloader downloads; do not embed authentication credentials.
+The permanent URL is available starting with v0.2.1. Older releases are not retrofitted. Downloader code **4146071**, with short URL [aftv.news/4146071](https://aftv.news/4146071), targets this permanent URL and needs no update for future releases. If the repository becomes private, this URL will no longer work for anonymous Downloader downloads; do not embed authentication credentials.
 
-After the first release's permanent-URL check passes, submit the permanent URL to the [AFTVnews URL shortener](https://go.aftvnews.com/). The destination must exist before AFTVnews will generate a code. Verify the resulting code/short link reaches the same APK, then add the numeric Downloader code and short link beside the permanent URL in the README. This is a one-time documentation update; subsequent releases use the same code.
+Keep the Downloader code pointed at the permanent URL rather than a version-specific asset. Adding or updating this installation information in the README is a documentation-only change and does not require another app release.
 
 ## Source and licenses
 
