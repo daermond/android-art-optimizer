@@ -41,6 +41,8 @@ The checksum and source archive are separate attachments; only the APK is needed
 
 This permanent URL is intended for direct installation tools such as AFTVnews Downloader. It uses GitHub's latest published production release, so the URL stays the same across releases. Drafts and prereleases do not become the normal installation target. The URL becomes available with the first release containing the stable APK asset; older releases contain only the versioned APK.
 
+A numeric Downloader code can be created once this URL is live. AFTVnews rejects a destination that does not exist yet; enter the permanent URL directly after the first release, or use the code once it has been added here.
+
 The repository is public, so downloads require no GitHub login. If it becomes private, anonymous Downloader downloads will require public distribution again; never put credentials or tokens in the URL.
 
 **Moving from an early test build:** the production release uses a permanent signing key. Android cannot install it over the debug-signed test build. Note your configured package IDs, uninstall the test build, then install the release and pair again. Future official release updates use the same key and can update the previous release in place.

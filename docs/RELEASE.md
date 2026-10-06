@@ -58,6 +58,8 @@ Use regular published production releases. GitHub selects `latest` directly; dra
 
 The first release with this change activates the permanent URL. Older releases are not retrofitted. A numeric Downloader code should target this permanent URL, so it needs no update for future releases. If the repository becomes private, this URL will no longer work for anonymous Downloader downloads; do not embed authentication credentials.
 
+After the first release's permanent-URL check passes, submit the permanent URL to the [AFTVnews URL shortener](https://go.aftvnews.com/). The destination must exist before AFTVnews will generate a code. Verify the resulting code/short link reaches the same APK, then add the numeric Downloader code and short link beside the permanent URL in the README. This is a one-time documentation update; subsequent releases use the same code.
+
 ## Source and licenses
 
 The app is GPLv3. [Third-party notices](../THIRD_PARTY_NOTICES.md) describe dependency licenses. Each release's source ZIP includes the matching application source/build scripts and the pinned Kadb, spake2-java, and Elisabeth sources; its manifest identifies the commit and dependency hashes. Do not remove the source attachment while distributing its APK.
